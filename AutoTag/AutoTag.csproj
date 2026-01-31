@@ -7,7 +7,9 @@
 		<CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
 		<AssemblyTitle>AutoTag</AssemblyTitle>
 		<AssemblyName>AutoTag</AssemblyName>
+		<AssemblyVersion>1.0.1.0</AssemblyVersion>
 		<RootNamespace>AutoTag</RootNamespace>
+		<Version>1.0.1.0</Version>
 	</PropertyGroup>
 
 	<ItemGroup>

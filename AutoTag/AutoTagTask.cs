@@ -279,7 +279,11 @@ namespace AutoTag
 
         private async Task<List<ExternalItemDto>> FetchTrakt(string rawUrl, string clientId, int limit, CancellationToken cancellationToken)
         {
-            string path = rawUrl.Replace("https://trakt.tv", "").Replace("https://api.trakt.tv", "").Trim().Split('?')[0];
+            // Här lade jag till replace för "app.trakt.tv"
+            string path = rawUrl.Replace("https://trakt.tv", "")
+                                .Replace("https://api.trakt.tv", "")
+                                .Replace("https://app.trakt.tv", "")
+                                .Trim().Split('?')[0];
 
             if (path.Contains("?") && path.Split('?').Length > 0)
                 path = path.Split('?')[0];
