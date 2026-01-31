@@ -8,6 +8,9 @@
 
 Stop manually tagging "Trending" or "Recommended" content. Let AutoTag keep your library in sync with the world.
 
+Perfect for Emby 4.10+, this plugin pairs perfectly with the new Home Screen management in Emby Server v4.10.0.1+. It allows you to populate your home screen based on Tags instead of cluttering your library with temporary Collections.
+Using tags is a perfect way to manage and sort your media without cluttering your library.
+
 ## 🚀 Key Features
 
 ### 🔄 True Synchronization
@@ -26,7 +29,8 @@ Changed your mind? If you delete a tag configuration from the settings, AutoTag 
 
 
 ### Screenshot
-![AutoTag](https://github.com/user-attachments/assets/4138e43d-b7a5-415f-b736-0dbd22b9d549)
+<img width="783" height="963" alt="autotag" src="https://github.com/user-attachments/assets/c9d8f702-5647-41ea-9dff-d57b20b1f208" />
+
 
 
 
