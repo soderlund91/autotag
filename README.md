@@ -71,7 +71,7 @@ Click **+ Add Source** to create a new sync task.
 * **Watched (Weekly):** `https://trakt.tv/movies/watched/weekly`
 
 **MDBList:**
-* **Dynamic List:** `https://mdblist.com/lists/user/listname/json`
+* **Dynamic List:** `https://mdblist.com/lists/user/listname/`
 
 ---
 
