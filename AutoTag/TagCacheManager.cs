@@ -1,0 +1,95 @@
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using MediaBrowser.Model.Serialization;
+
+namespace AutoTag
+{
+    public class TagCacheManager
+    {
+        public static TagCacheManager Instance { get; } = new TagCacheManager();
+
+        private Dictionary<string, HashSet<string>> _cache = new Dictionary<string, HashSet<string>>();
+        private readonly object _lock = new object();
+        private string _cacheFilePath;
+        private IJsonSerializer _jsonSerializer;
+
+        private TagCacheManager() { }
+
+        public void Initialize(string dataPath, IJsonSerializer jsonSerializer)
+        {
+            _cacheFilePath = Path.Combine(dataPath, "autotag_cache.json");
+            _jsonSerializer = jsonSerializer;
+            Load();
+        }
+
+        public void AddToCache(string providerId, string tag)
+        {
+            lock (_lock)
+            {
+                if (!_cache.ContainsKey(providerId))
+                {
+                    _cache[providerId] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                }
+                _cache[providerId].Add(tag);
+            }
+        }
+
+        public void ClearCache()
+        {
+            lock (_lock)
+            {
+                _cache.Clear();
+            }
+        }
+
+        public List<string> GetTagsForIds(Dictionary<string, string> providerIds)
+        {
+            var tagsToApply = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            lock (_lock)
+            {
+                if (providerIds.TryGetValue("imdb", out var imdb) && _cache.ContainsKey($"imdb_{imdb}"))
+                {
+                    foreach (var tag in _cache[$"imdb_{imdb}"]) tagsToApply.Add(tag);
+                }
+                if (providerIds.TryGetValue("tmdb", out var tmdb) && _cache.ContainsKey($"tmdb_{tmdb}"))
+                {
+                    foreach (var tag in _cache[$"tmdb_{tmdb}"]) tagsToApply.Add(tag);
+                }
+            }
+            return tagsToApply.ToList();
+        }
+
+        public void Save()
+        {
+            if (_jsonSerializer == null) return;
+            lock (_lock)
+            {
+                try
+                {
+                    _jsonSerializer.SerializeToFile(_cache, _cacheFilePath);
+                }
+                catch { }
+            }
+        }
+
+        private void Load()
+        {
+            if (_jsonSerializer == null) return;
+            lock (_lock)
+            {
+                try
+                {
+                    if (File.Exists(_cacheFilePath))
+                    {
+                        var loaded = _jsonSerializer.DeserializeFromFile<Dictionary<string, HashSet<string>>>(_cacheFilePath);
+                        if (loaded != null) _cache = loaded;
+                    }
+                }
+                catch { }
+            }
+        }
+    }
+}

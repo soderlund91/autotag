@@ -48,8 +48,11 @@ namespace AutoTag
             bool debug = config.ExtendedConsoleOutput;
             bool dryRun = config.DryRunMode;
 
-            _logger.Info($"--- STARTING AUTOTAG (v1.1.3) ---");
-            if (dryRun) _logger.Info("--- DRY RUN MODE ENABLED (No changes will be saved) ---");
+            _logger.Info($"--- STARTING AUTOTAG (v1.2.0) ---");
+
+            TagCacheManager.Instance.Initialize(Plugin.Instance.DataFolderPath, _jsonSerializer);
+
+            TagCacheManager.Instance.ClearCache();
 
             var currentTags = config.Tags
                 .Where(t => !string.IsNullOrWhiteSpace(t.Tag))
@@ -65,18 +68,15 @@ namespace AutoTag
                 foreach (var orphan in orphanedTags) CleanUpTag(orphan, debug, dryRun);
             }
 
-            if (!dryRun)
-            {
-                SaveTagHistory(currentTags);
-            }
+            if (!dryRun) SaveTagHistory(currentTags);
 
             progress.Report(5);
 
             foreach (var tagName in currentTags) CleanUpTag(tagName, debug, dryRun);
+
             progress.Report(10);
 
             var fetcher = new ListFetcher(_httpClient, _jsonSerializer);
-
             double step = 90.0 / (config.Tags.Count > 0 ? config.Tags.Count : 1);
             double currentProgress = 10;
 
@@ -94,25 +94,23 @@ namespace AutoTag
                 try
                 {
                     var itemsFound = await fetcher.FetchItems(tagConfig.Url, tagConfig.Limit, config.TraktClientId, config.MdblistApiKey, cancellationToken);
-
-                    if (itemsFound.Count > tagConfig.Limit)
-                        itemsFound = itemsFound.Take(tagConfig.Limit).ToList();
-
-                    if (debug) _logger.Info($"    -> Source returned {itemsFound.Count} items.");
+                    if (itemsFound.Count > tagConfig.Limit) itemsFound = itemsFound.Take(tagConfig.Limit).ToList();
 
                     int addedCount = 0;
                     var processedIds = new HashSet<string>();
 
                     foreach (var item in itemsFound)
                     {
+                        if (!string.IsNullOrEmpty(item.Imdb)) TagCacheManager.Instance.AddToCache($"imdb_{item.Imdb}", tagName);
+                        if (!string.IsNullOrEmpty(item.Tmdb)) TagCacheManager.Instance.AddToCache($"tmdb_{item.Tmdb}", tagName);
+
                         string uid = !string.IsNullOrEmpty(item.Imdb) ? item.Imdb : $"tmdb-{item.Tmdb}";
                         if (processedIds.Contains(uid)) continue;
                         processedIds.Add(uid);
 
-                        if (MatchAndTag(item, tagName, debug, dryRun))
-                            addedCount++;
+                        if (MatchAndTag(item, tagName, debug, dryRun)) addedCount++;
                     }
-                    _logger.Info($"    -> Tagged {addedCount} items with '{tagName}'.");
+                    _logger.Info($"    -> Tagged {addedCount} existing items with '{tagName}'.");
                 }
                 catch (Exception ex)
                 {
@@ -123,9 +121,15 @@ namespace AutoTag
                 progress.Report(currentProgress);
             }
 
+            if (!dryRun)
+            {
+                TagCacheManager.Instance.Save();
+            }
+
             progress.Report(100);
             _logger.Info("--- Finished ---");
         }
+
 
         private string GetHistoryFilePath() => Path.Combine(Plugin.Instance.DataFolderPath, "autotag_history.txt");
 
@@ -159,11 +163,7 @@ namespace AutoTag
             {
                 if (item.Tags.Contains(tagName, StringComparer.OrdinalIgnoreCase))
                 {
-                    if (dryRun)
-                    {
-                        count++;
-                        continue;
-                    }
+                    if (dryRun) { count++; continue; }
 
                     var master = _libraryManager.GetItemById(item.Id);
                     var actualTag = master?.Tags.FirstOrDefault(t => t.Equals(tagName, StringComparison.OrdinalIgnoreCase));

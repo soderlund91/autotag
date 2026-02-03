@@ -7,10 +7,10 @@
 		<CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
 		<AssemblyTitle>AutoTag</AssemblyTitle>
 		<AssemblyName>AutoTag</AssemblyName>
-		<AssemblyVersion>1.1.0</AssemblyVersion>
+		<AssemblyVersion>1.2.0.0</AssemblyVersion>
 		<RootNamespace>AutoTag</RootNamespace>
-		<Version>1.1.0</Version>
-		<FileVersion>1.1.0</FileVersion>
+		<Version>1.2.0.0</Version>
+		<FileVersion>1.2.0.0</FileVersion>
 	</PropertyGroup>
 
 	<ItemGroup>
