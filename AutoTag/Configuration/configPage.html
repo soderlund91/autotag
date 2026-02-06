@@ -111,11 +111,11 @@
             justify-content: center;
         }
 
-        .btn-add-url:hover {
-            background: var(--theme-background-level2) !important;
-            color: var(--theme-text-primary) !important;
-            border-color: #52B54B !important;
-        }
+            .btn-add-url:hover {
+                background: var(--theme-background-level2) !important;
+                color: var(--theme-text-primary) !important;
+                border-color: #52B54B !important;
+            }
 
         .tag-row.expanded .tag-body {
             display: block;
@@ -253,13 +253,11 @@
     </style>
 
     <div class="content-primary">
-
         <div class="verticalSection">
             <h2 class="sectionTitle">Settings</h2>
             <p class="textMuted">Configure API keys and sources for automatic tagging.</p>
 
             <form class="AutoTagForm">
-
                 <div class="inputContainer">
                     <input is="emby-input" type="text" id="txtTraktClientId" label="Trakt Client ID" />
                 </div>
@@ -286,7 +284,7 @@
                                 <input is="emby-checkbox" type="checkbox" id="chkDryRunMode" />
                                 <span>Dry Run Mode</span>
                             </label>
-                            <div class="fieldDescription">If enabled, the plugin will simulate the process and log changes to the Emby-log, but NO tags will be added or removed from your database.</div>
+                            <div class="fieldDescription">Simulate process without modifying database.</div>
                         </div>
                     </div>
                 </div>
@@ -294,21 +292,14 @@
                 <hr style="border-color: var(--line-color);" />
 
                 <div class="inspiration-container">
-                    <p class="textMuted" style="margin-bottom: 10px; font-size: 0.9em;">
-                        Looking for lists to use? Check out these links:
-                    </p>
-
+                    <p class="textMuted" style="margin-bottom: 10px; font-size: 0.9em;">Looking for lists?</p>
                     <div class="links-wrapper">
                         <a href="https://trakt.tv/discover" target="_blank" class="simple-link">
-                            <img src="https://i.ibb.co/xSMnN8NK/trakt-logo.png" alt="Trakt" />
-                            <span>Trakt</span>
+                            <img src="https://i.ibb.co/xSMnN8NK/trakt-logo.png" alt="Trakt" /><span>Trakt</span>
                         </a>
-
                         <span style="color: var(--theme-text-secondary);">|</span>
-
                         <a href="https://mdblist.com/toplists/" target="_blank" class="simple-link">
-                            <img src="https://i.ibb.co/7JWQDLLR/mdblist.png" alt="MDBList" />
-                            <span>MDBList</span>
+                            <img src="https://i.ibb.co/7JWQDLLR/mdblist.png" alt="MDBList" /><span>MDBList</span>
                         </a>
                     </div>
                 </div>
@@ -326,34 +317,18 @@
 
                 <div class="floating-actions">
                     <button is="emby-button" type="submit" class="raised button-submit fab-btn btn-save">
-                        <i class="md-icon" style="margin-right:5px;">save</i>
-                        <span>Save Settings</span>
+                        <i class="md-icon" style="margin-right:5px;">save</i><span>Save Settings</span>
                     </button>
-
                     <button is="emby-button" type="button" id="btnRunSync" class="raised button-submit fab-btn btn-run">
-                        <i class="md-icon" style="margin-right:5px;">play_arrow</i>
-                        <span>Run Full Sync</span>
+                        <i class="md-icon" style="margin-right:5px;">play_arrow</i><span>Run Full Sync</span>
                     </button>
                 </div>
-
             </form>
         </div>
 
         <div style="margin-top: 5em; padding-top: 2em; border-top: 1px solid var(--line-color); text-align: center; color: var(--theme-text-secondary);">
-
             <p style="margin-bottom: 10px; font-weight: bold;">AutoTag v1.3.0.0</p>
-
-            <a href="https://github.com/soderlund91/autotag" target="_blank" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px; color: #52B54B; font-weight: 500; margin-bottom: 20px;">
-                <i class="md-icon" style="font-size: 1.2em;">code</i>
-                <span>View Source on GitHub</span>
-            </a>
-
-            <p style="font-size: 0.75em; opacity: 0.6; max-width: 600px; margin: 0 auto; font-style: italic;">
-                AutoTag is an open-source project and is not affiliated with, endorsed by, or connected to Trakt.tv or MDBList.
-                All trademarks and logos belong to their respective owners.
-            </p>
-
+            <p style="font-size: 0.75em; opacity: 0.6; font-style: italic;">AutoTag is not affiliated with Trakt.tv or MDBList.</p>
         </div>
-
     </div>
 </div>
