@@ -1,17 +1,19 @@
-﻿using System;
+﻿using MediaBrowser.Common.Net;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Entities;
+using MediaBrowser.Model.Logging;
+using MediaBrowser.Model.Querying;
+using MediaBrowser.Model.Serialization;
+using MediaBrowser.Model.Tasks;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using MediaBrowser.Model.Tasks;
-using MediaBrowser.Controller.Library;
-using MediaBrowser.Common.Net;
-using MediaBrowser.Model.Serialization;
-using MediaBrowser.Model.Logging;
-using MediaBrowser.Controller.Entities;
-using MediaBrowser.Model.Querying;
-using MediaBrowser.Model.Entities;
-using System.IO;
 
 namespace AutoTag
 {
@@ -48,10 +50,9 @@ namespace AutoTag
             bool debug = config.ExtendedConsoleOutput;
             bool dryRun = config.DryRunMode;
 
-            _logger.Info($"--- STARTING AUTOTAG (v1.2.0) ---");
+            _logger.Info($"--- STARTING AUTOTAG (v1.3.0) ---");
 
             TagCacheManager.Instance.Initialize(Plugin.Instance.DataFolderPath, _jsonSerializer);
-
             TagCacheManager.Instance.ClearCache();
 
             var currentTags = config.Tags
@@ -89,18 +90,33 @@ namespace AutoTag
                 }
 
                 string tagName = tagConfig.Tag.Trim();
+
+                var localBlacklist = new HashSet<string>(tagConfig.Blacklist ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
+
                 if (debug) _logger.Info($"[SOURCE] Processing '{tagName}' from: {tagConfig.Url}");
+                if (localBlacklist.Count > 0 && debug) _logger.Info($"   -> Blacklist contains {localBlacklist.Count} items.");
 
                 try
                 {
                     var itemsFound = await fetcher.FetchItems(tagConfig.Url, tagConfig.Limit, config.TraktClientId, config.MdblistApiKey, cancellationToken);
-                    if (itemsFound.Count > tagConfig.Limit) itemsFound = itemsFound.Take(tagConfig.Limit).ToList();
+
+                    if (itemsFound.Count > tagConfig.Limit)
+                        itemsFound = itemsFound.Take(tagConfig.Limit).ToList();
 
                     int addedCount = 0;
                     var processedIds = new HashSet<string>();
 
                     foreach (var item in itemsFound)
                     {
+                        bool isBlacklisted = (!string.IsNullOrEmpty(item.Imdb) && localBlacklist.Contains(item.Imdb)) ||
+                                             (!string.IsNullOrEmpty(item.Tmdb) && localBlacklist.Contains(item.Tmdb));
+
+                        if (isBlacklisted)
+                        {
+                            if (debug) _logger.Info($"   [BLACKLIST] Skipped '{item.Name}' for tag '{tagName}'");
+                            continue;
+                        }
+
                         if (!string.IsNullOrEmpty(item.Imdb)) TagCacheManager.Instance.AddToCache($"imdb_{item.Imdb}", tagName);
                         if (!string.IsNullOrEmpty(item.Tmdb)) TagCacheManager.Instance.AddToCache($"tmdb_{item.Tmdb}", tagName);
 

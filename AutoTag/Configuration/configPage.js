@@ -1,175 +1,251 @@
 define([], function () {
     'use strict';
 
-    var pluginId = "E1234567-89AB-CDEF-0123-456789ABCDEF";
+    var pluginId = "7c10708f-43e4-4d69-923c-77d01802315b";
 
-    function renderTagRow(tagData, container, prepend) {
-        var tActive = (tagData.Active !== false);
-        var tName = tagData.Tag || '';
-        var tUrl = tagData.Url || '';
-        var tLimit = tagData.Limit || 50;
+    function getUrlRowHtml(value) {
+        var val = value || '';
+        return `
+            <div class="url-row" style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                <div style="flex-grow:1;">
+                    <input is="emby-input" class="txtTagUrl" type="text" label="Trakt/MDBList URL or ID" value="${val}" />
+                </div>
+                
+                <button type="button" is="emby-button" class="raised button-submit btnTestUrl" style="min-width:60px; height:36px; padding:0 10px; font-size:0.8rem; margin:0;" title="Test Source">
+                    <span>Test</span>
+                </button>
 
-        var checkedStr = tActive ? 'checked' : '';
-        var displayTitle = tName ? tName : "New Source";
-        var activeStatus = tActive ? "Active" : "Disabled";
+                <button type="button" is="emby-button" class="raised btnRemoveUrl" style="background:transparent !important; min-width:40px; width:40px; padding:0; color:#cc3333; display:flex; align-items:center; justify-content:center; box-shadow:none;" title="Remove URL">
+                    <i class="md-icon">remove_circle_outline</i>
+                </button>
+            </div>`;
+    }
+
+    function renderTagGroup(tagConfig, container) {
+        var isChecked = tagConfig.Active !== false ? 'checked' : '';
+        var tagName = tagConfig.Tag || '';
+        var urls = tagConfig.Urls || [];
+
+        var activeText = tagConfig.Active !== false ? "Active" : "Disabled";
+        var activeColor = tagConfig.Active !== false ? "#52B54B" : "var(--theme-text-secondary)";
+
+        var urlHtml = '';
+        if (urls.length > 0) {
+            for (var i = 0; i < urls.length; i++) {
+                urlHtml += getUrlRowHtml(urls[i]);
+            }
+        } else {
+            urlHtml += getUrlRowHtml('');
+        }
 
         var html = `
-            <div class="tag-row">
-                <div class="tag-header">
-                    <div class="tag-info">
-                        <i class="md-icon expand-icon">expand_more</i>
-                        <span class="tag-title">${displayTitle}</span>
-                        <span class="tag-status" style="${tActive ? 'color:#52B54B' : 'color:#ccc'}">${activeStatus}</span>
-                    </div>
-                    <div class="header-actions" style="display:flex; align-items:center;">
-                        <label class="flex align-items-center" style="margin-right:15px; cursor:pointer;" title="Enable/Disable">
-                            <input type="checkbox" class="chkTagActive" ${checkedStr} />
+        <div class="tag-row">
+            <div class="tag-header" style="display:flex; align-items:center; justify-content:space-between; padding:10px; cursor:pointer;">
+                <div style="display:flex; align-items:center;">
+                    
+                    <div class="header-actions" style="margin-right:15px; display:flex; align-items:center;" onclick="event.stopPropagation()">
+                        <span class="lblActiveStatus" style="margin-right:8px; font-size:0.9em; font-weight:bold; color:${activeColor}; min-width:60px; text-align:right;">${activeText}</span>
+                        <label class="checkboxContainer" style="margin:0;">
+                            <input type="checkbox" is="emby-checkbox" class="chkTagActive" ${isChecked} />
+                            <span></span>
                         </label>
-                        <button is="emby-button" type="button" class="raised button-cancel btnRemoveTag" style="min-width: unset; padding: 0.5em;" title="Delete">
-                            <i class="md-icon">delete</i>
-                        </button>
+                    </div>
+
+                    <div class="tag-info">
+                        <span class="tag-title" style="font-weight:bold; font-size:1.1em;">${tagName || 'New Tag'}</span>
+                        <span class="tag-status" style="margin-left:10px; font-size:0.8em; opacity:0.7;">${urls.length} SOURCE(S)</span>
                     </div>
                 </div>
-                <div class="tag-body">
-                    <div class="inputContainer">
-                        <input is="emby-input" type="text" class="txtTagName" label="Tag Name" value="${tName}" />
-                        <div class="fieldDescription">The tag applied in Emby (e.g. weekly_trending).</div>
-                    </div>
-                    <div style="display:flex; align-items: flex-end; gap: 10px;">
-                        <div class="inputContainer" style="flex-grow:1;">
-                            <input is="emby-input" type="text" class="txtTagUrl" label="Source URL" value="${tUrl}" />
-                            <div class="fieldDescription">Trakt URL or MDBList URL.</div>
-                        </div>
-                        <button is="emby-button" type="button" class="raised button-submit btnTestUrl" style="margin-bottom: 2.2em; min-width: 80px;">
-                            <span>Test</span>
-                        </button>
-                    </div>
-                    <div class="inputContainer">
-                        <input is="emby-input" type="number" class="txtTagLimit" label="Limit" value="${tLimit}" />
-                    </div>
+                <i class="md-icon expand-icon">expand_more</i>
+            </div>
+
+            <div class="tag-body" style="display:none; padding:15px; border-top:1px solid rgba(255,255,255,0.1);">
+                <div class="inputContainer">
+                    <input is="emby-input" class="txtTagName" type="text" label="Tag Name" value="${tagName}" />
                 </div>
-            </div>`;
+                
+                <p style="margin:20px 0 10px 0; font-size:0.9em; font-weight:bold; opacity:0.7;">Source URLs</p>
+                <div class="url-list-container">
+                    ${urlHtml}
+                </div>
 
-        if (prepend) container.insertAdjacentHTML('afterbegin', html);
-        else container.insertAdjacentHTML('beforeend', html);
+                <div style="margin-top:10px;">
+                    <button is="emby-button" type="button" class="raised btnAddUrl" style="width:100%; background:transparent; border:1px dashed #555; color:#ccc;">
+                        <i class="md-icon" style="margin-right:5px;">add</i>Add another URL
+                    </button>
+                </div>
 
-        setupRowEvents(prepend ? container.firstElementChild : container.lastElementChild);
+                <div style="text-align:right; margin-top:20px; border-top:1px solid rgba(255,255,255,0.1); padding-top:10px;">
+                    <button is="emby-button" type="button" class="raised btnRemoveGroup" onclick="event.stopPropagation()" style="background:#cc3333 !important; color:#fff;">
+                        <i class="md-icon" style="margin-right:5px;">delete</i>Remove Tag Group
+                    </button>
+                </div>
+            </div>
+        </div>`;
+
+        container.insertAdjacentHTML('beforeend', html);
+        var row = container.lastElementChild;
+        setupRowEvents(row);
     }
 
     function setupRowEvents(row) {
         var header = row.querySelector('.tag-header');
+        var body = row.querySelector('.tag-body');
+        var expandIcon = row.querySelector('.expand-icon');
+
         header.addEventListener('click', function (e) {
             if (e.target.closest('.header-actions')) return;
-            row.classList.toggle('expanded');
+
+            var isHidden = body.style.display === 'none';
+            body.style.display = isHidden ? 'block' : 'none';
+            expandIcon.innerText = isHidden ? 'expand_less' : 'expand_more';
+        });
+
+        var chk = row.querySelector('.chkTagActive');
+        var lblStatus = row.querySelector('.lblActiveStatus');
+
+        chk.addEventListener('change', function () {
+            if (this.checked) {
+                lblStatus.textContent = "Active";
+                lblStatus.style.color = "#52B54B";
+            } else {
+                lblStatus.textContent = "Disabled";
+                lblStatus.style.color = "var(--theme-text-secondary)";
+            }
         });
 
         var txtName = row.querySelector('.txtTagName');
         var titleSpan = row.querySelector('.tag-title');
-        txtName.addEventListener('input', function () { titleSpan.textContent = this.value || "New Source"; });
-
-        var chk = row.querySelector('.chkTagActive');
-        var statusSpan = row.querySelector('.tag-status');
-        chk.addEventListener('change', function () {
-            statusSpan.textContent = this.checked ? "Active" : "Disabled";
-            statusSpan.style.color = this.checked ? "#52B54B" : "#ccc";
+        txtName.addEventListener('input', function () {
+            titleSpan.textContent = this.value || 'New Tag';
         });
 
-        var btnTest = row.querySelector('.btnTestUrl');
-        btnTest.addEventListener('click', function () {
-            var url = row.querySelector('.txtTagUrl').value;
-            var limit = row.querySelector('.txtTagLimit').value || 10;
-            var span = btnTest.querySelector('span');
-            var originalText = span.textContent;
-            if (!url) { alert("Please enter a URL to test."); return; }
+        row.querySelector('.btnAddUrl').addEventListener('click', function () {
+            var list = row.querySelector('.url-list-container');
+            list.insertAdjacentHTML('beforeend', getUrlRowHtml(''));
+            updateCount(row);
+        });
 
-            span.textContent = "...";
-            btnTest.disabled = true;
-            var ApiClient = window.ApiClient;
+        row.querySelector('.url-list-container').addEventListener('click', function (e) {
+            if (e.target.closest('.btnRemoveUrl')) {
+                e.target.closest('.url-row').remove();
+                updateCount(row);
+                return;
+            }
 
-            ApiClient.getJSON(ApiClient.getUrl("AutoTag/TestUrl", { Url: url, Limit: limit })).then(function (result) {
-                if (result.Success) {
-                    var msg = "✅ Connection Successful!\n\n" + result.Message;
-                    alert(msg);
-                } else {
-                    alert("❌ Error:\n" + result.Message);
+            var btnTest = e.target.closest('.btnTestUrl');
+            if (btnTest) {
+                var urlRow = btnTest.closest('.url-row');
+                var url = urlRow.querySelector('.txtTagUrl').value;
+                var span = btnTest.querySelector('span');
+                var originalText = span.textContent;
+
+                if (!url) {
+                    if (window.Dashboard) window.Dashboard.alert("Please enter a URL to test.");
+                    return;
                 }
-            }).catch(function () {
-                alert("❌ Network Error:\nCould not reach the server plugin.");
-            }).finally(function () {
-                span.textContent = originalText;
-                btnTest.disabled = false;
-            });
+
+                span.textContent = "...";
+                btnTest.disabled = true;
+                var ApiClient = window.ApiClient;
+
+                ApiClient.getJSON(ApiClient.getUrl("AutoTag/TestUrl", { Url: url, Limit: 10 })).then(function (result) {
+                    if (window.Dashboard) {
+                        if (result.Success) {
+                            window.Dashboard.alert("✅ Valid Link!\n\n" + result.Message);
+                        } else {
+                            window.Dashboard.alert("❌ Invalid Link:\n" + result.Message);
+                        }
+                    } else {
+                        alert(result.Message);
+                    }
+                }).catch(function () {
+                    if (window.Dashboard) window.Dashboard.alert("❌ Network Error:\nCould not reach the server plugin.");
+                }).finally(function () {
+                    span.textContent = originalText;
+                    btnTest.disabled = false;
+                });
+            }
+        });
+
+        row.querySelector('.btnRemoveGroup').addEventListener('click', function () {
+            if (confirm("Delete this tag group?")) {
+                row.remove();
+            }
         });
     }
 
+    function updateCount(row) {
+        var count = row.querySelectorAll('.txtTagUrl').length;
+        row.querySelector('.tag-status').textContent = count + " SOURCE(S)";
+    }
+
     return function (view) {
+
         view.addEventListener('viewshow', function () {
             var ApiClient = window.ApiClient;
             if (!ApiClient) return;
             if (window.Dashboard) window.Dashboard.showLoadingMsg();
 
             ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                var container = view.querySelector('#tagListContainer');
+                container.innerHTML = '';
+
+                var advHeader = view.querySelector('#advancedSettings .advanced-header');
+                var newHeader = advHeader.cloneNode(true);
+                advHeader.parentNode.replaceChild(newHeader, advHeader);
+
+                newHeader.addEventListener('click', function () {
+                    var section = view.querySelector('#advancedSettings');
+                    var body = section.querySelector('.advanced-body');
+                    var icon = section.querySelector('.expand-icon');
+
+                    if (body.style.display === 'none' || body.style.display === '') {
+                        body.style.display = 'block';
+                        icon.innerText = 'expand_less';
+                    } else {
+                        body.style.display = 'none';
+                        icon.innerText = 'expand_more';
+                    }
+                });
+
                 view.querySelector('#txtTraktClientId').value = config.TraktClientId || '';
                 view.querySelector('#txtMdblistApiKey').value = config.MdblistApiKey || '';
                 view.querySelector('#chkExtendedConsoleOutput').checked = config.ExtendedConsoleOutput || false;
                 view.querySelector('#chkDryRunMode').checked = config.DryRunMode || false;
 
-                var container = view.querySelector('#tagListContainer');
-                container.innerHTML = '';
+                var rawTags = config.Tags || [];
+                var grouped = {};
 
-                var tags = config.Tags || [];
-                if (tags.length > 0) tags.forEach(function (t) { renderTagRow(t, container, false); });
-                else {
-                    renderTagRow({ Active: true, Tag: '', Url: '', Limit: 50 }, container, false);
-                    container.firstElementChild.classList.add('expanded');
+                for (var i = 0; i < rawTags.length; i++) {
+                    var t = rawTags[i];
+                    var name = t.Tag || 'Untitled';
+                    if (!grouped[name]) {
+                        grouped[name] = { Tag: name, Urls: [], Active: t.Active !== false };
+                    }
+                    if (t.Url) grouped[name].Urls.push(t.Url);
                 }
+
+                var keys = Object.keys(grouped);
+                if (keys.length > 0) {
+                    keys.forEach(function (k) {
+                        renderTagGroup(grouped[k], container);
+                    });
+                } else {
+                    renderTagGroup({ Tag: '', Urls: [''], Active: true }, container);
+                }
+
                 if (window.Dashboard) window.Dashboard.hideLoadingMsg();
             });
         });
 
-        view.querySelector('#advancedSettings .advanced-header').addEventListener('click', function () {
-            this.parentElement.classList.toggle('expanded');
-        });
-
-        view.querySelector('#btnRunSync').addEventListener('click', function () {
-            var btn = this;
-            var originalText = btn.querySelector('span').textContent;
-
-            var isDryRun = view.querySelector('#chkDryRunMode').checked;
-            var msg = "Run the AutoTag sync task now?";
-            if (isDryRun) msg += "\n\n⚠️ DRY RUN MODE IS ENABLED. No changes will be saved.";
-
-            if (!confirm(msg)) return;
-
-            btn.disabled = true;
-            btn.querySelector('span').textContent = "Starting...";
-            var ApiClient = window.ApiClient;
-
-            ApiClient.ajax({
-                type: "POST",
-                url: ApiClient.getUrl("AutoTag/RunSync"),
-                dataType: "json"
-            })
-                .finally(function () {
-                    btn.disabled = false;
-                    btn.querySelector('span').textContent = originalText;
-                });
-        });
-
         view.querySelector('#btnAddTag').addEventListener('click', function () {
             var container = view.querySelector('#tagListContainer');
-            renderTagRow({ Active: true, Tag: '', Url: '', Limit: 50 }, container, true);
-            container.firstElementChild.classList.add('expanded');
-        });
+            renderTagGroup({ Tag: '', Urls: [''], Active: true }, container);
 
-        view.querySelector('#tagListContainer').addEventListener('click', function (e) {
-            if (e.target.closest('.btnRemoveTag')) {
-                var row = e.target.closest('.tag-row');
-                if (row) {
-                    row.style.opacity = '0';
-                    setTimeout(() => row.remove(), 200);
-                }
-            }
+            var newRow = container.lastElementChild;
+            newRow.querySelector('.tag-body').style.display = 'block';
+            newRow.querySelector('.expand-icon').innerText = 'expand_less';
         });
 
         view.querySelector('.AutoTagForm').addEventListener('submit', function (e) {
@@ -177,36 +253,70 @@ define([], function () {
             var ApiClient = window.ApiClient;
             if (window.Dashboard) window.Dashboard.showLoadingMsg();
 
-            var traktId = view.querySelector('#txtTraktClientId').value;
-            var mdbKey = view.querySelector('#txtMdblistApiKey').value;
-            var extOutput = view.querySelector('#chkExtendedConsoleOutput').checked;
-            var dryRun = view.querySelector('#chkDryRunMode').checked;
-
-            var tags = [];
+            var flatTags = [];
             var rows = view.querySelectorAll('.tag-row');
+
             rows.forEach(function (row) {
-                var tName = row.querySelector('.txtTagName').value;
-                if (tName) {
-                    tags.push({
-                        Active: row.querySelector('.chkTagActive').checked,
-                        Tag: tName,
-                        Url: row.querySelector('.txtTagUrl').value,
-                        Limit: parseInt(row.querySelector('.txtTagLimit').value) || 50
+                var tagName = row.querySelector('.txtTagName').value;
+                var isActive = row.querySelector('.chkTagActive').checked;
+                var urls = row.querySelectorAll('.txtTagUrl');
+
+                if (tagName) {
+                    urls.forEach(function (urlInput) {
+                        var u = urlInput.value;
+                        if (u && u.trim() !== '') {
+                            flatTags.push({
+                                Tag: tagName,
+                                Url: u.trim(),
+                                Active: isActive,
+                                Limit: 50,
+                                Blacklist: []
+                            });
+                        }
                     });
                 }
             });
 
             ApiClient.getPluginConfiguration(pluginId).then(function (config) {
-                config.TraktClientId = traktId;
-                config.MdblistApiKey = mdbKey;
-                config.ExtendedConsoleOutput = extOutput;
-                config.DryRunMode = dryRun;
-                config.Tags = tags;
+                config.TraktClientId = view.querySelector('#txtTraktClientId').value;
+                config.MdblistApiKey = view.querySelector('#txtMdblistApiKey').value;
+                config.ExtendedConsoleOutput = view.querySelector('#chkExtendedConsoleOutput').checked;
+                config.DryRunMode = view.querySelector('#chkDryRunMode').checked;
+                config.Tags = flatTags;
+
                 ApiClient.updatePluginConfiguration(pluginId, config).then(function (result) {
                     if (window.Dashboard) window.Dashboard.processPluginConfigurationUpdateResult(result);
                 });
             });
+
             return false;
         });
+
+        var btnRunSync = view.querySelector('#btnRunSync');
+        if (btnRunSync) {
+            btnRunSync.addEventListener('click', function () {
+                if (window.Dashboard) window.Dashboard.showLoadingMsg();
+                var ApiClient = window.ApiClient;
+                ApiClient.getScheduledTasks().then(function (tasks) {
+                    var myTask = tasks.filter(function (t) {
+                        return t.Key && t.Key.indexOf("AutoTagSyncTask") !== -1;
+                    })[0];
+
+                    if (myTask) {
+                        ApiClient.startScheduledTask(myTask.Id).then(function () {
+                            if (window.Dashboard) {
+                                window.Dashboard.hideLoadingMsg();
+                                window.Dashboard.alert('Sync started! Check logs for progress.');
+                            }
+                        });
+                    } else {
+                        if (window.Dashboard) {
+                            window.Dashboard.hideLoadingMsg();
+                            window.Dashboard.alert('Could not find the Scheduled Task.');
+                        }
+                    }
+                });
+            });
+        }
     };
 });

@@ -14,7 +14,7 @@ namespace AutoTag
     {
         public override string Name => "Auto Tag";
 
-        public override Guid Id => new Guid("E1234567-89AB-CDEF-0123-456789ABCDEF");
+        public override Guid Id => new Guid("7c10708f-43e4-4d69-923c-77d01802315b");
 
         public override string Description => "Automatic tagging system based on Trakt and MDBList.";
 
@@ -44,7 +44,7 @@ namespace AutoTag
                 {
                     Name = "AutoTag",
                     EmbeddedResourcePath = htmlPath,
-                    
+
                     EnableInMainMenu = true,
                     DisplayName = "AutoTag",
                     MenuIcon = "local_offer"

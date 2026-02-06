@@ -1,6 +1,5 @@
 ﻿namespace AutoTag
 {
-    // Det gemensamma formatet vi använder internt i pluginet
     public class ExternalItemDto
     {
         public string Name { get; set; }

@@ -1,8 +1,9 @@
-﻿using System;
+﻿using MediaBrowser.Model.Serialization;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using MediaBrowser.Model.Serialization;
+using System.Text.Json;
 
 namespace AutoTag
 {

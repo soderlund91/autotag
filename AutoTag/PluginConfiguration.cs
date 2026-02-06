@@ -18,5 +18,6 @@ namespace AutoTag
         public string Tag { get; set; } = "";
         public string Url { get; set; } = "";
         public int Limit { get; set; } = 50;
+        public List<string> Blacklist { get; set; } = new List<string>();
     }
 }
