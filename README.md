@@ -29,7 +29,12 @@ Changed your mind? If you delete a tag configuration from the settings, AutoTag 
 
 
 ### Screenshot
-<img width="783" height="963" alt="autotag" src="https://github.com/user-attachments/assets/c9d8f702-5647-41ea-9dff-d57b20b1f208" />
+
+<img width="396" height="476" alt="screenshot" src="https://github.com/user-attachments/assets/34e00584-4779-4ddf-960a-c7ecc3f97e9b" />
+
+New entry/tag
+
+<img width="371" height="305" alt="new_entry" src="https://github.com/user-attachments/assets/14614644-011e-4281-beb2-18bd4a5f4d4a" />
 
 
 
