@@ -3,6 +3,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
 
     var pluginId = "7c10708f-43e4-4d69-923c-77d01802315b";
     var statusInterval = null;
+    var originalConfigState = null;
 
     var customCss = `
     <style>
@@ -74,6 +75,30 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         .badge-container {
             display: flex;
             align-items: center;
+        }
+
+        .sort-hidden .btn-sort-up,
+        .sort-hidden .btn-sort-down {
+            display: none !important;
+        }
+
+        .dry-run-warning {
+            background-color: #E67E22;
+            color: #000000;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.1em;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            position: sticky;
+            top: 60px;
+            z-index: 10000;
         }
     </style>`;
 
@@ -183,13 +208,16 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             </div>`;
     }
 
-    function renderTagGroup(tagConfig, container, prepend) {
+    function renderTagGroup(tagConfig, container, prepend, index) {
         var isChecked = tagConfig.Active !== false ? 'checked' : '';
         var tagName = tagConfig.Tag || '';
         var limit = tagConfig.Limit || 50;
         var urls = tagConfig.Urls || (tagConfig.Url ? [tagConfig.Url] : ['']);
         var blacklist = (tagConfig.Blacklist || []).join(', ');
         var intervals = tagConfig.ActiveIntervals || [];
+        var idx = typeof index !== 'undefined' ? index : 9999;
+
+        var lastMod = tagConfig.LastModified || new Date().toISOString();
 
         var enableColl = tagConfig.EnableCollection ? 'checked' : '';
         var onlyColl = tagConfig.OnlyCollection ? 'checked' : '';
@@ -198,7 +226,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         var activeText = tagConfig.Active !== false ? "Active" : "Disabled";
         var activeColor = tagConfig.Active !== false ? "#52B54B" : "var(--theme-text-secondary)";
 
-        // Note: Badges are now generated dynamically by updateBadges(), but we provide initial state here
         var indicatorsHtml = '';
         if (intervals.length > 0) {
             indicatorsHtml += `<span class="tag-indicator schedule"><i class="md-icon" style="font-size:1.1em;">calendar_today</i> Schedule</span>`;
@@ -208,10 +235,14 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         }
 
         var html = `
-        <div class="tag-row">
+        <div class="tag-row" data-index="${idx}" data-last-modified="${lastMod}" data-dirty="false">
             <div class="tag-header" style="display:flex; align-items:center; justify-content:space-between; padding:10px; cursor:pointer;">
                 <div style="display:flex; align-items:center;">
                     <div class="header-actions" style="margin-right:15px; display:flex; align-items:center;" onclick="event.stopPropagation()">
+                        <div style="display:flex; flex-direction:column; margin-right:8px;">
+                            <i class="md-icon btn-sort-up" style="cursor:pointer; font-size:1.4em; line-height:0.8; opacity:0.7;">keyboard_arrow_up</i>
+                            <i class="md-icon btn-sort-down" style="cursor:pointer; font-size:1.4em; line-height:0.8; opacity:0.7;">keyboard_arrow_down</i>
+                        </div>
                         <span class="lblActiveStatus" style="margin-right:8px; font-size:0.9em; font-weight:bold; color:${activeColor}; min-width:60px; text-align:right;">${activeText}</span>
                         <label class="checkboxContainer" style="margin:0;">
                             <input type="checkbox" is="emby-checkbox" class="chkTagActive" ${isChecked} />
@@ -293,8 +324,27 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
     }
 
     function setupRowEvents(row) {
+        row.querySelector('.btn-sort-up').addEventListener('click', e => {
+            e.stopPropagation();
+            var p = row.previousElementSibling;
+            if (p) { row.parentNode.insertBefore(row, p); checkGlobalDirtyState(); }
+        });
+        row.querySelector('.btn-sort-down').addEventListener('click', e => {
+            e.stopPropagation();
+            var n = row.nextElementSibling;
+            if (n) { row.parentNode.insertBefore(n, row); checkGlobalDirtyState(); }
+        });
 
-        // Helper to update badges in real-time
+        var markDirty = function () { row.dataset.dirty = 'true'; checkGlobalDirtyState(); };
+        row.querySelectorAll('input, textarea, select').forEach(el => {
+            el.addEventListener('input', markDirty);
+            el.addEventListener('change', markDirty);
+        });
+
+        row.querySelectorAll('.day-toggle').forEach(el => {
+            el.addEventListener('click', markDirty);
+        });
+
         function updateBadges(row) {
             var container = row.querySelector('.badge-container');
             if (!container) return;
@@ -363,24 +413,26 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             lblStatus.style.color = this.checked ? "#52B54B" : "var(--theme-text-secondary)";
         });
 
-        row.querySelector('.btnAddUrl').addEventListener('click', () => { row.querySelector('.url-list-container').insertAdjacentHTML('beforeend', getUrlRowHtml('')); updateCount(row); });
+        row.querySelector('.btnAddUrl').addEventListener('click', () => { row.querySelector('.url-list-container').insertAdjacentHTML('beforeend', getUrlRowHtml('')); updateCount(row); markDirty(); });
 
-        // Update badge when adding date
         row.querySelector('.btnAddDate').addEventListener('click', () => {
             row.querySelector('.date-list-container').insertAdjacentHTML('beforeend', getDateRowHtml({ Type: 'SpecificDate' }));
             updateBadges(row);
+            markDirty();
         });
 
         row.addEventListener('click', e => {
-            if (e.target.closest('.btnRemoveUrl')) { e.target.closest('.url-row').remove(); updateCount(row); }
+            if (e.target.closest('.btnRemoveUrl')) { e.target.closest('.url-row').remove(); updateCount(row); markDirty(); }
 
-            // Update badge when removing date
             if (e.target.closest('.btnRemoveDate')) {
                 e.target.closest('.date-row').remove();
                 updateBadges(row);
+                markDirty();
             }
 
-            if (e.target.closest('.btnRemoveGroup')) if (confirm("Delete this tag group?")) row.remove();
+            if (e.target.closest('.btnRemoveGroup')) {
+                if (confirm("Delete this tag group?")) { row.remove(); checkGlobalDirtyState(); }
+            }
 
             var btnTest = e.target.closest('.btnTestUrl');
             if (btnTest) {
@@ -405,8 +457,11 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 if (btnSave) { btnSave.disabled = true; btnSave.style.opacity = "0.5"; btnSave.querySelector('span').textContent = "Sync in progress..."; }
                 if (btnRun) btnRun.disabled = true;
             } else {
-                if (btnSave) { btnSave.disabled = false; btnSave.style.opacity = "1"; btnSave.querySelector('span').textContent = "Save Settings"; }
                 if (btnRun) btnRun.disabled = false;
+                if (btnSave) {
+                    btnSave.querySelector('span').textContent = "Save Settings";
+                    checkGlobalDirtyState();
+                }
             }
 
             if (label) label.textContent = result.LastRunStatus || "Never";
@@ -419,11 +474,135 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         });
     }
 
+    function sortRows(container, criteria) {
+        var rows = Array.from(container.querySelectorAll('.tag-row'));
+
+        rows.sort((a, b) => {
+            if (criteria === 'Name') {
+                var na = a.querySelector('.txtTagName').value.toLowerCase();
+                var nb = b.querySelector('.txtTagName').value.toLowerCase();
+                return na.localeCompare(nb);
+            }
+            if (criteria === 'Active') {
+                var aa = a.querySelector('.chkTagActive').checked ? 1 : 0;
+                var bb = b.querySelector('.chkTagActive').checked ? 1 : 0;
+                return bb - aa;
+            }
+            if (criteria === 'LatestEdited') {
+                var da = new Date(a.dataset.lastModified || 0).getTime();
+                var db = new Date(b.dataset.lastModified || 0).getTime();
+                return db - da;
+            }
+            return parseInt(a.dataset.index) - parseInt(b.dataset.index);
+        });
+
+        rows.forEach(row => container.appendChild(row));
+
+        if (criteria !== 'Manual') container.classList.add('sort-hidden');
+        else container.classList.remove('sort-hidden');
+    }
+
+    function getUiConfig(view) {
+        var flatTags = [];
+        view.querySelectorAll('.tag-row').forEach(row => {
+            var name = row.querySelector('.txtTagName').value, active = row.querySelector('.chkTagActive').checked, limit = parseInt(row.querySelector('.txtTagLimit').value) || 50;
+            var bl = row.querySelector('.txtTagBlacklist').value.split(',').map(s => s.trim()).filter(s => s.length > 0);
+
+            var enableColl = row.querySelector('.chkEnableCollection').checked;
+            var onlyColl = row.querySelector('.chkOnlyCollection').checked;
+            var collName = row.querySelector('.txtCollectionName').value;
+
+            var intervals = [];
+            row.querySelectorAll('.date-row').forEach(dr => {
+                var type = dr.querySelector('.selDateType').value;
+                var s = null, e = null, days = "";
+
+                if (type === 'SpecificDate') {
+                    s = dr.querySelector('.txtFullStartDate').value;
+                    e = dr.querySelector('.txtFullEndDate').value;
+                } else if (type === 'EveryYear') {
+                    var sM = dr.querySelector('.selStartMonth').value, sD = dr.querySelector('.selStartDay').value;
+                    var eM = dr.querySelector('.selEndMonth').value, eD = dr.querySelector('.selEndDay').value;
+                    s = `2000-${sM.padStart(2, '0')}-${sD.padStart(2, '0')}`;
+                    e = `2000-${eM.padStart(2, '0')}-${eD.padStart(2, '0')}`;
+                } else if (type === 'Weekly') {
+                    var activeBtns = Array.from(dr.querySelectorAll('.day-toggle.active')).map(b => b.dataset.day);
+                    days = activeBtns.join(',');
+                }
+
+                intervals.push({ Type: type, Start: s || null, End: e || null, DayOfWeek: days });
+            });
+
+            row.querySelectorAll('.txtTagUrl').forEach(u => {
+                if (u.value) flatTags.push({
+                    Tag: name,
+                    Url: u.value.trim(),
+                    Active: active,
+                    Limit: limit,
+                    Blacklist: bl,
+                    ActiveIntervals: intervals,
+                    EnableCollection: enableColl,
+                    CollectionName: collName,
+                    OnlyCollection: onlyColl
+                });
+            });
+        });
+
+        return {
+            TraktClientId: view.querySelector('#txtTraktClientId').value,
+            MdblistApiKey: view.querySelector('#txtMdblistApiKey').value,
+            ExtendedConsoleOutput: view.querySelector('#chkExtendedConsoleOutput').checked,
+            DryRunMode: view.querySelector('#chkDryRunMode').checked,
+            Tags: flatTags
+        };
+    }
+
+    function checkGlobalDirtyState() {
+        var view = document.querySelector('#AutoTagConfigPage');
+        if (!view || !originalConfigState) return;
+        var current = JSON.stringify(getUiConfig(view));
+        var btnSave = view.querySelector('.btn-save');
+
+        if (btnSave) {
+            if (current !== originalConfigState) {
+                btnSave.disabled = false;
+                btnSave.style.opacity = "1";
+            } else {
+                btnSave.disabled = true;
+                btnSave.style.opacity = "0.5";
+            }
+        }
+    }
+
+    function updateDryRunWarning() {
+        var view = document.querySelector('#AutoTagConfigPage');
+        if (!view || !originalConfigState) return;
+        var warn = view.querySelector('.dry-run-warning');
+        if (warn) {
+            try {
+                var savedConfig = JSON.parse(originalConfigState);
+                warn.style.display = savedConfig.DryRunMode ? 'flex' : 'none';
+            } catch (e) {
+                warn.style.display = 'none';
+            }
+        }
+    }
+
     return function (view) {
         view.addEventListener('viewshow', () => {
             if (!document.getElementById('autoTagCustomCss')) {
                 document.body.insertAdjacentHTML('beforeend', customCss.replace('<style>', '<style id="autoTagCustomCss">'));
             }
+
+            view.insertAdjacentHTML('afterbegin', '<div class="dry-run-warning"><i class="md-icon" style="font-size:1.4em;"></i>AUTOTAG<br>DRY RUN MODE IS ACTIVE - NO CHANGES WILL BE SAVED</div>');
+
+            var btnSave = view.querySelector('.btn-save');
+            if (btnSave) { btnSave.disabled = true; btnSave.style.opacity = "0.5"; }
+
+            view.querySelector('#txtTraktClientId').addEventListener('input', checkGlobalDirtyState);
+            view.querySelector('#txtMdblistApiKey').addEventListener('input', checkGlobalDirtyState);
+            view.querySelector('#chkExtendedConsoleOutput').addEventListener('change', checkGlobalDirtyState);
+            view.querySelector('#chkDryRunMode').addEventListener('change', checkGlobalDirtyState);
 
             refreshStatus(view);
             statusInterval = setInterval(() => refreshStatus(view), 5000);
@@ -461,7 +640,32 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 });
             }
 
-            view.querySelector('#btnAddTag').addEventListener('click', () => renderTagGroup({ Tag: '', Urls: [''], Active: true, Limit: 50 }, view.querySelector('#tagListContainer'), true));
+            var headerAction = view.querySelector('.sectionTitleContainer');
+            if (headerAction && !view.querySelector('#cbSortTags')) {
+                var savedSort = localStorage.getItem('AutoTag_SortBy') || 'Manual';
+                var sortHtml = `
+                <div style="margin-right: 15px; display:flex; align-items:center;">
+                    <span style="margin-right:10px; font-size:0.9em; opacity:0.7;">Sort by:</span>
+                    <select is="emby-select" id="cbSortTags" style="color:inherit; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); padding:5px; border-radius:4px;">
+                        <option value="Manual" ${savedSort === 'Manual' ? 'selected' : ''}>Manual</option>
+                        <option value="Name" ${savedSort === 'Name' ? 'selected' : ''}>Name (A-Z)</option>
+                        <option value="Active" ${savedSort === 'Active' ? 'selected' : ''}>Status (Active First)</option>
+                        <option value="LatestEdited" ${savedSort === 'LatestEdited' ? 'selected' : ''}>Latest Edited</option>
+                    </select>
+                </div>`;
+                headerAction.querySelector('.sectionTitle').style.marginRight = "auto";
+                headerAction.querySelector('#btnAddTag').insertAdjacentHTML('beforebegin', sortHtml);
+
+                view.querySelector('#cbSortTags').addEventListener('change', function () {
+                    localStorage.setItem('AutoTag_SortBy', this.value);
+                    sortRows(view.querySelector('#tagListContainer'), this.value);
+                });
+            }
+
+            view.querySelector('#btnAddTag').addEventListener('click', () => {
+                renderTagGroup({ Tag: '', Urls: [''], Active: true, Limit: 50 }, view.querySelector('#tagListContainer'), true);
+                checkGlobalDirtyState();
+            });
 
             window.ApiClient.getPluginConfiguration(pluginId).then(config => {
                 var container = view.querySelector('#tagListContainer'); container.innerHTML = '';
@@ -480,15 +684,23 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                         ActiveIntervals: t.ActiveIntervals,
                         EnableCollection: t.EnableCollection,
                         CollectionName: t.CollectionName,
-                        OnlyCollection: t.OnlyCollection
+                        OnlyCollection: t.OnlyCollection,
+                        LastModified: t.LastModified
                     };
                     if (t.Url) grouped[t.Tag].Urls.push(t.Url);
                 });
-                Object.keys(grouped).forEach(k => renderTagGroup(grouped[k], container, false));
-                if (Object.keys(grouped).length === 0) renderTagGroup({ Tag: '', Urls: [''], Active: true, Limit: 50 }, container, false);
+                var keys = Object.keys(grouped);
+                keys.forEach((k, i) => renderTagGroup(grouped[k], container, false, i));
+                if (keys.length === 0) renderTagGroup({ Tag: '', Urls: [''], Active: true, Limit: 50 }, container, false, 0);
+
+                var savedSort = localStorage.getItem('AutoTag_SortBy') || 'Manual';
+                sortRows(container, savedSort);
+
+                originalConfigState = JSON.stringify(getUiConfig(view));
+                checkGlobalDirtyState();
+                updateDryRunWarning();
             });
 
-            // BACKUP Logic
             view.querySelector('#btnBackupConfig').addEventListener('click', () => {
                 window.ApiClient.getPluginConfiguration(pluginId).then(config => {
                     var json = JSON.stringify(config, null, 2);
@@ -504,7 +716,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 });
             });
 
-            // RESTORE Logic
             var fileInput = view.querySelector('#fileRestoreConfig');
             view.querySelector('#btnRestoreConfigTrigger').addEventListener('click', () => fileInput.click());
 
@@ -535,14 +746,17 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                                 ActiveIntervals: t.ActiveIntervals,
                                 EnableCollection: t.EnableCollection,
                                 CollectionName: t.CollectionName,
-                                OnlyCollection: t.OnlyCollection
+                                OnlyCollection: t.OnlyCollection,
+                                LastModified: t.LastModified
                             };
                             if (t.Url) grouped[t.Tag].Urls.push(t.Url);
                         });
-                        Object.keys(grouped).forEach(k => renderTagGroup(grouped[k], container, false));
-                        if (Object.keys(grouped).length === 0) renderTagGroup({ Tag: '', Urls: [''], Active: true, Limit: 50 }, container, false);
+                        var keys = Object.keys(grouped);
+                        keys.forEach((k, i) => renderTagGroup(grouped[k], container, false, i));
+                        if (keys.length === 0) renderTagGroup({ Tag: '', Urls: [''], Active: true, Limit: 50 }, container, false, 0);
 
                         window.Dashboard.alert("Configuration loaded! Review settings and click 'Save Settings' to apply.");
+                        checkGlobalDirtyState();
                     } catch (err) {
                         window.Dashboard.alert("Failed to parse configuration file.");
                     }
@@ -586,6 +800,13 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     intervals.push({ Type: type, Start: s || null, End: e || null, DayOfWeek: days });
                 });
 
+                var currentLastMod = row.dataset.lastModified || new Date().toISOString();
+                if (row.dataset.dirty === 'true') {
+                    currentLastMod = new Date().toISOString();
+                    row.dataset.lastModified = currentLastMod;
+                    row.dataset.dirty = 'false';
+                }
+
                 row.querySelectorAll('.txtTagUrl').forEach(u => {
                     if (u.value) flatTags.push({
                         Tag: name,
@@ -596,7 +817,8 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                         ActiveIntervals: intervals,
                         EnableCollection: enableColl,
                         CollectionName: collName,
-                        OnlyCollection: onlyColl
+                        OnlyCollection: onlyColl,
+                        LastModified: currentLastMod
                     });
                 });
             });
@@ -607,7 +829,13 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 config.ExtendedConsoleOutput = view.querySelector('#chkExtendedConsoleOutput').checked;
                 config.DryRunMode = view.querySelector('#chkDryRunMode').checked;
                 config.Tags = flatTags;
-                window.ApiClient.updatePluginConfiguration(pluginId, config).then(r => window.Dashboard.processPluginConfigurationUpdateResult(r));
+                window.ApiClient.updatePluginConfiguration(pluginId, config).then(r => {
+                    window.Dashboard.processPluginConfigurationUpdateResult(r);
+                    originalConfigState = JSON.stringify(getUiConfig(view));
+                    var btnSave = view.querySelector('.btn-save');
+                    if (btnSave) { btnSave.disabled = true; btnSave.style.opacity = "0.5"; }
+                    updateDryRunWarning();
+                });
             });
         });
 

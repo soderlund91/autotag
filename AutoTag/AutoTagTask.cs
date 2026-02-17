@@ -24,7 +24,7 @@ namespace AutoTag
         private readonly IJsonSerializer _jsonSerializer;
         private readonly ILogger _logger;
 
-        public static string LastRunStatus { get; private set; } = "Never";
+        public static string LastRunStatus { get; private set; } = "Unknown (resets at server restart)";
         public static List<string> ExecutionLog { get; } = new List<string>();
         public static bool IsRunning { get; private set; } = false;
 
@@ -38,8 +38,8 @@ namespace AutoTag
         }
 
         public string Key => "AutoTagSyncTask";
-        public string Name => "AutoTag: Sync Tags";
-        public string Description => "Syncs tags from MDBList and Trakt based on configuration.";
+        public string Name => "AutoTag: Start Sync";
+        public string Description => "Syncs tags and collections from MDBList and Trakt based on configuration.";
         public string Category => "Library";
 
         public IEnumerable<TaskTriggerInfo> GetDefaultTriggers()
@@ -252,7 +252,7 @@ namespace AutoTag
                 if (!dryRun) SaveFileHistory("autotag_collections.txt", activeCollections.ToList());
 
                 progress.Report(100);
-                LastRunStatus = dryRun ? "Dry Run Complete" : "Success";
+                LastRunStatus = (dryRun ? "Dry Run Complete" : "Success") + $" ({DateTime.Now:HH:mm})";
                 LogSummary("--- AUTOTAG FINISHED ---");
             }
             catch (Exception ex)

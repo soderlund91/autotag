@@ -25,6 +25,8 @@ namespace AutoTag
         public bool EnableCollection { get; set; } = false;
         public string CollectionName { get; set; } = "";
         public bool OnlyCollection { get; set; } = false;
+
+        public DateTime LastModified { get; set; } = DateTime.MinValue;
     }
 
     public class DateInterval
