@@ -1085,7 +1085,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 fetch(window.ApiClient.getUrl('AutoTag/UploadCollectionImage'), {
                     method: 'POST',
                     headers: headers,
-                    body: JSON.stringify({ FileName: file.name, Base64Data: base64 })
+                    body: JSON.stringify({ FileName: file.name, Base64Data: base64, OldFilePath: row.querySelector('.hiddenPosterPath').value })
                 }).then(function (r) { return r.json(); })
                 .then(function (result) {
                     if (result.Success) {
@@ -1123,7 +1123,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             fetch(window.ApiClient.getUrl('AutoTag/FetchCollectionImageFromUrl'), {
                 method: 'POST',
                 headers: headers,
-                body: JSON.stringify({ Url: url })
+                body: JSON.stringify({ Url: url, OldFilePath: row.querySelector('.hiddenPosterPath').value })
             }).then(function (r) { return r.json(); })
             .then(function (result) {
                 if (result.Success) {

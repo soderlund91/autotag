@@ -35,12 +35,14 @@ namespace AutoTag
     {
         public string FileName { get; set; } = "";
         public string Base64Data { get; set; } = "";
+        public string OldFilePath { get; set; } = "";
     }
 
     [Route("/AutoTag/FetchCollectionImageFromUrl", "POST")]
     public class FetchCollectionImageFromUrlRequest : IReturn<UploadCollectionImageResponse>
     {
         public string Url { get; set; } = "";
+        public string OldFilePath { get; set; } = "";
     }
 
     public class UploadCollectionImageResponse
@@ -92,6 +94,15 @@ namespace AutoTag
             };
         }
 
+        private static void DeleteOldImage(string oldFilePath, string imagesDir)
+        {
+            if (string.IsNullOrWhiteSpace(oldFilePath)) return;
+            var fullImagesDir = Path.GetFullPath(imagesDir);
+            var fullOldPath = Path.GetFullPath(oldFilePath);
+            if (fullOldPath.StartsWith(fullImagesDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) && File.Exists(fullOldPath))
+                File.Delete(fullOldPath);
+        }
+
         public object Post(UploadCollectionImageRequest request)
         {
             try
@@ -101,6 +112,8 @@ namespace AutoTag
 
                 var imagesDir = Path.Combine(dataPath, "collection_images");
                 Directory.CreateDirectory(imagesDir);
+
+                DeleteOldImage(request.OldFilePath, imagesDir);
 
                 var ext = Path.GetExtension(request.FileName ?? "").ToLowerInvariant();
                 if (!new[] { ".jpg", ".jpeg", ".png", ".webp", ".gif" }.Contains(ext)) ext = ".jpg";
@@ -130,6 +143,8 @@ namespace AutoTag
 
                 var imagesDir = Path.Combine(dataPath, "collection_images");
                 Directory.CreateDirectory(imagesDir);
+
+                DeleteOldImage(request.OldFilePath, imagesDir);
 
                 var ext = Path.GetExtension(new Uri(request.Url).AbsolutePath).ToLowerInvariant();
                 if (!new[] { ".jpg", ".jpeg", ".png", ".webp", ".gif" }.Contains(ext)) ext = ".jpg";
