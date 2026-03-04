@@ -9,6 +9,9 @@
 
 > **v3.0.0.0** — Plugin renamed from AutoTag to Home Screen Companion.
 
+> [!IMPORTANT]
+> Since version 3.0.0.0 this plugin no longer support Emby server version 4.9.x.x. Requires Emby 4.10+
+
 ---
 
 ## 🚀 Key Features
@@ -147,7 +150,14 @@ Each source is configured across four tabs:
 
 ### Screenshots
 
-(Coming)
+<img width="775" height="828" alt="image" src="https://github.com/user-attachments/assets/bfe32910-ad40-418b-8c2f-a4b38fe7b69a" />
+
+<img width="721" height="1200" alt="image" src="https://github.com/user-attachments/assets/b96714b8-d9bf-4aea-9a66-bc08e7060d48" />
+
+<img width="778" height="905" alt="image" src="https://github.com/user-attachments/assets/04b29706-1e23-4505-b2e0-155089bdb433" />
+
+<img width="916" height="699" alt="image" src="https://github.com/user-attachments/assets/b78d6f9a-6ce5-4af7-b4d5-f05c11abcbef" />
+
 
 ---
 **Disclaimer:** This plugin is not affiliated with Emby, Trakt, or MDBList.
