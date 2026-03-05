@@ -12,7 +12,6 @@ namespace HomeScreenCompanion
         public bool DryRunMode { get; set; } = false;
         public List<TagConfig> Tags { get; set; } = new List<TagConfig>();
 
-        // Home Screen Companion
         public bool HomeSyncEnabled { get; set; } = false;
         public string HomeSyncSourceUserId { get; set; } = "";
         public List<string> HomeSyncTargetUserIds { get; set; } = new List<string>();

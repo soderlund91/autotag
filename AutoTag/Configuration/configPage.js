@@ -330,7 +330,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
     }
 
     function getMaxDays(month) {
-        // Year 2001 is NOT a leap year → February is capped at 28, safe for all years.
         return new Date(2001, month, 0).getDate();
     }
 
@@ -1427,6 +1426,9 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             isDirty = true;
         }
 
+        var btnApplyManage = view.querySelector('#btnApplyManage');
+        if (btnApplyManage && !btnApplyManage.disabled) isDirty = true;
+
         var btnSave = view.querySelector('.btn-save');
         if (btnSave) {
             var isSyncRunning = (btnSave.querySelector('span').textContent || "").includes("progress");
@@ -1536,7 +1538,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         return grouped;
     }
 
-    // ── Home Screen  ─────────────────────────────────────────────────
 
     function renderHscTab(container, config, users) {
         var sourceOptions = users.map(function (u) {
@@ -1635,7 +1636,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             });
     }
 
-    // ── Home Screen – Manage tab ──────────────────────────────────────────────
 
     function getManDragAfterElement(container, y) {
         var els = [...container.querySelectorAll('.man-section-row:not(.man-dragging)')];
@@ -1699,7 +1699,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     applyManageSections(view);
                 });
 
-                // Container-level drag events — set up once, survive row re-renders
                 var manRafId = null;
                 listEl.addEventListener('dragover', function (e) {
                     e.preventDefault();
@@ -1726,7 +1725,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     } else if (ph) {
                         ph.remove();
                     }
-                    // Sync + Apply enable handled in dragend
                 });
 
                 container.dataset.loaded = '1';
@@ -1803,8 +1801,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 var ph = listEl.querySelector('.sort-placeholder');
                 if (ph) ph.remove();
 
-                // Sync currentManageSections from current DOM order, then enable Apply.
-                // Always run — same pattern as tag entries calling checkFormState in dragend.
                 var domRows = [...listEl.querySelectorAll('.man-section-row')];
                 if (domRows.length > 0) {
                     var snapshot = currentManageSections.slice();
@@ -1817,7 +1813,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                         if (delBtn) delBtn.dataset.sectionIndex = pos;
                     });
                     var btnApply = container.querySelector('#btnApplyManage');
-                    if (btnApply) btnApply.disabled = false;
+                    if (btnApply) { btnApply.disabled = false; checkFormState(); }
                 }
             });
 
@@ -1825,7 +1821,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 currentManageSections.splice(parseInt(this.dataset.sectionIndex), 1);
                 renderManageSections(view);
                 var btnApply = container.querySelector('#btnApplyManage');
-                if (btnApply) btnApply.disabled = false;
+                if (btnApply) { btnApply.disabled = false; checkFormState(); }
             });
         });
     }
@@ -1868,7 +1864,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             });
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
 
     return function (view) {
         view.addEventListener('viewshow', () => {
@@ -2138,7 +2133,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
 
         view.querySelector('.HomeScreenCompanionForm').addEventListener('submit', e => {
             e.preventDefault();
-            
+
+            var btnApplyManage = view.querySelector('#btnApplyManage');
+            if (btnApplyManage && !btnApplyManage.disabled) applyManageSections(view);
+
             var configObj = getUiConfig(view, false);
             
             var originalConf = JSON.parse(originalConfigState);
@@ -2177,7 +2175,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             });
         });
 
-        // Speed dial — open/close
         var speedDial = view.querySelector('#runSpeedDial');
         var syncMenu = view.querySelector('#runSyncMenu');
         view.querySelector('#btnRunSync').addEventListener('click', function (e) {
@@ -2232,7 +2229,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             document.removeEventListener('click', closeSpeedDial);
         }, { once: true });
 
-        // ── Page-level tab switching ──────────────────────────────────────────
         view.querySelectorAll('.page-tab-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 var target = this.getAttribute('data-page-tab');
@@ -2250,7 +2246,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             });
         });
 
-        // ── HSC sub-tab switching (Copy / Manage) ─────────────────────────────
         view.querySelectorAll('.hsc-sub-tab-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 var target = this.getAttribute('data-hsc-tab');
