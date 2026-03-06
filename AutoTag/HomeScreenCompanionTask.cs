@@ -7,10 +7,12 @@ using MediaBrowser.Model.Logging;
 using MediaBrowser.Model.Querying;
 using MediaBrowser.Model.Serialization;
 using MediaBrowser.Model.Tasks;
+using MediaBrowser.Model.Users;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,6 +22,7 @@ namespace HomeScreenCompanion
     {
         private readonly ILibraryManager _libraryManager;
         private readonly ICollectionManager _collectionManager;
+        private readonly IUserManager _userManager;
         private readonly IHttpClient _httpClient;
         private readonly IJsonSerializer _jsonSerializer;
         private readonly ILogger _logger;
@@ -28,10 +31,11 @@ namespace HomeScreenCompanion
         public static List<string> ExecutionLog { get; } = new List<string>();
         public static bool IsRunning { get; private set; } = false;
 
-        public HomeScreenCompanionTask(ILibraryManager libraryManager, ICollectionManager collectionManager, IHttpClient httpClient, IJsonSerializer jsonSerializer, ILogManager logManager)
+        public HomeScreenCompanionTask(ILibraryManager libraryManager, ICollectionManager collectionManager, IUserManager userManager, IHttpClient httpClient, IJsonSerializer jsonSerializer, ILogManager logManager)
         {
             _libraryManager = libraryManager;
             _collectionManager = collectionManager;
+            _userManager = userManager;
             _httpClient = httpClient;
             _jsonSerializer = jsonSerializer;
             _logger = logManager.GetLogger("HomeScreenCompanion");
@@ -489,6 +493,8 @@ namespace HomeScreenCompanion
 
                 if (!dryRun) SaveFileHistory("homescreencompanion_collections.txt", activeCollections.ToList());
 
+                if (!dryRun) ManageHomeSections(config, cancellationToken);
+
                 progress.Report(100);
                 var elapsed = DateTime.Now - startTime;
                 string elapsedStr = elapsed.TotalMinutes >= 1
@@ -504,6 +510,295 @@ namespace HomeScreenCompanion
                 LogSummary($"CRITICAL ERROR: {ex.Message}", "Error");
             }
             finally { IsRunning = false; }
+        }
+
+        private void ManageHomeSections(PluginConfiguration config, CancellationToken cancellationToken)
+        {
+            bool configChanged = false;
+            // External entries with multiple URLs produce duplicate TagConfigs with the same Name+Tag.
+            // Only the first occurrence should manage a home section.
+            var processedHsKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var tc in config.Tags)
+            {
+                bool isActive = tc.Active && IsScheduleActive(tc.ActiveIntervals);
+
+                if (tc.HomeSectionTracked == null)
+                    tc.HomeSectionTracked = new List<HomeSectionTracking>();
+
+                // Unique subtitle marker — used to identify our sections when SectionId capture fails
+                var safeTag = string.Concat((tc.Tag ?? tc.Name ?? "").Take(40)
+                    .Select(c => char.IsLetterOrDigit(c) || c == '-' || c == '_' ? c : '_'));
+                var sectionMarker = "hsc__" + safeTag;
+
+                if (!tc.EnableHomeSection || !isActive)
+                {
+                    if (tc.HomeSectionTracked.Count > 0)
+                    {
+                        foreach (var tracking in tc.HomeSectionTracked)
+                        {
+                            try
+                            {
+                                var uid = _userManager.GetInternalId(tracking.UserId);
+                                DeleteSectionForUser(uid, tracking.SectionId, sectionMarker, tc.HomeSectionSettings, cancellationToken);
+                            }
+                            catch (Exception ex)
+                            {
+                                LogSummary($"  [HomeSection] Failed to remove section for user {tracking.UserId}: {ex.Message}", "Warn");
+                            }
+                        }
+                        tc.HomeSectionTracked.Clear();
+                        configChanged = true;
+                    }
+                    continue;
+                }
+
+                // Skip duplicate TagConfigs that share the same Name+Tag (e.g. multi-URL external entries)
+                var hsKey = (tc.Name ?? "") + "\x1F" + (tc.Tag ?? "");
+                if (!processedHsKeys.Add(hsKey))
+                {
+                    if (tc.HomeSectionTracked.Count > 0) { tc.HomeSectionTracked.Clear(); configChanged = true; }
+                    continue;
+                }
+
+                // Parse settings JSON
+                Dictionary<string, string> settingsDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                try
+                {
+                    if (!string.IsNullOrEmpty(tc.HomeSectionSettings) && tc.HomeSectionSettings != "{}")
+                        settingsDict = _jsonSerializer.DeserializeFromString<Dictionary<string, string>>(tc.HomeSectionSettings) ?? settingsDict;
+                }
+                catch { /* ignore malformed settings */ }
+
+                // Apply default SectionType if not explicitly set (backward compatibility)
+                if (!settingsDict.ContainsKey("SectionType"))
+                    settingsDict["SectionType"] = (tc.EnableCollection && !string.IsNullOrEmpty(tc.CollectionName)) ? "boxset" : "items";
+
+                settingsDict.TryGetValue("SectionType", out var sectionType);
+
+                // Resolve ParentId — only needed for boxset sections
+                string resolvedLibraryId = null;
+                if (sectionType == "boxset")
+                {
+                    if (tc.HomeSectionLibraryId == "auto")
+                    {
+                        if (tc.EnableCollection && !string.IsNullOrEmpty(tc.CollectionName))
+                        {
+                            var coll = _libraryManager.GetItemList(new InternalItemsQuery
+                            {
+                                IncludeItemTypes = new[] { "BoxSet" },
+                                Name = tc.CollectionName,
+                                Recursive = true
+                            }).FirstOrDefault();
+                            if (coll != null)
+                                resolvedLibraryId = coll.InternalId.ToString();
+                            else
+                                LogSummary($"  [HomeSection] Collection '{tc.CollectionName}' not found for entry '{tc.Name}'.", "Warn");
+                        }
+                    }
+                    else if (!string.IsNullOrEmpty(tc.HomeSectionLibraryId))
+                    {
+                        resolvedLibraryId = tc.HomeSectionLibraryId;
+                    }
+
+                    if (string.IsNullOrEmpty(resolvedLibraryId))
+                    {
+                        LogSummary($"  [HomeSection] Entry '{tc.Name}' is boxset type but no collection ParentId resolved. Skipping.", "Warn");
+                        continue;
+                    }
+                }
+
+                // For items type, look up the tag's Emby internal ID so Query.TagIds can be set
+                if (sectionType == "items" && !string.IsNullOrEmpty(tc.Tag))
+                {
+                    var tagItem = _libraryManager.GetItemList(new InternalItemsQuery
+                    {
+                        IncludeItemTypes = new[] { "Tag" },
+                        Name = tc.Tag,
+                        Recursive = true
+                    }).FirstOrDefault();
+                    if (tagItem != null)
+                        settingsDict["_queryTagId"] = tagItem.InternalId.ToString();
+                    else
+                        LogSummary($"  [HomeSection] Tag '{tc.Tag}' not found in Emby library — section will have no tag filter.", "Warn");
+                }
+
+                // Remove tracking entries for users no longer in the list
+                var removedUsers = tc.HomeSectionTracked.Where(t => !tc.HomeSectionUserIds.Contains(t.UserId)).ToList();
+                foreach (var t in removedUsers)
+                {
+                    try
+                    {
+                        var uid = _userManager.GetInternalId(t.UserId);
+                        DeleteSectionForUser(uid, t.SectionId, sectionMarker, tc.HomeSectionSettings, cancellationToken);
+                    }
+                    catch { }
+                    tc.HomeSectionTracked.Remove(t);
+                    configChanged = true;
+                }
+
+                foreach (var userId in tc.HomeSectionUserIds)
+                {
+                    try
+                    {
+                        var userInternalId = _userManager.GetInternalId(userId);
+
+                        // Delete previously tracked section for this user
+                        var tracked = tc.HomeSectionTracked.FirstOrDefault(t => t.UserId == userId);
+                        if (tracked != null)
+                            DeleteSectionForUser(userInternalId, tracked.SectionId, sectionMarker, tc.HomeSectionSettings, cancellationToken);
+
+                        // Snapshot existing IDs before adding (to capture the new section's ID)
+                        var beforeSections = _userManager.GetHomeSections(userInternalId, cancellationToken);
+                        var beforeIds = new HashSet<string>(
+                            (beforeSections?.Sections ?? Array.Empty<ContentSection>())
+                                .Where(s => !string.IsNullOrEmpty(s.Id))
+                                .Select(s => s.Id));
+
+                        var newSection = BuildContentSection(settingsDict, resolvedLibraryId);
+                        _userManager.AddHomeSection(userInternalId, newSection, cancellationToken);
+
+                        // Capture the new section ID
+                        var afterSections = _userManager.GetHomeSections(userInternalId, cancellationToken);
+                        var newId = (afterSections?.Sections ?? Array.Empty<ContentSection>())
+                            .Where(s => !string.IsNullOrEmpty(s.Id) && !beforeIds.Contains(s.Id))
+                            .Select(s => s.Id)
+                            .FirstOrDefault() ?? "";
+
+                        // Store real ID if captured, otherwise fall back to the marker (for next-run delete)
+                        var trackId = !string.IsNullOrEmpty(newId) ? newId : sectionMarker;
+                        if (tracked != null)
+                            tracked.SectionId = trackId;
+                        else
+                            tc.HomeSectionTracked.Add(new HomeSectionTracking { UserId = userId, SectionId = trackId });
+
+                        configChanged = true;
+                        LogSummary($"  [HomeSection] Added section for user {userId} (entry: '{tc.Name}', tracking: '{trackId}')");
+                    }
+                    catch (Exception ex)
+                    {
+                        LogSummary($"  [HomeSection] Failed for user {userId} (entry: '{tc.Name}'): {ex.Message}", "Warn");
+                    }
+                }
+            }
+
+            if (configChanged)
+                Plugin.Instance.SaveConfiguration();
+        }
+
+        private void DeleteSectionForUser(long userInternalId, string sectionId, string sectionMarker, string settingsJson, CancellationToken cancellationToken)
+        {
+            // Real section ID: delete directly
+            if (!string.IsNullOrEmpty(sectionId) && !sectionId.StartsWith("hsc__"))
+            {
+                _userManager.DeleteHomeSections(userInternalId, new[] { sectionId }, cancellationToken);
+                return;
+            }
+
+            // sectionId is empty or is a stored marker — need to look up by subtitle/name
+            ContentSection[] allSections;
+            try { allSections = _userManager.GetHomeSections(userInternalId, cancellationToken)?.Sections ?? Array.Empty<ContentSection>(); }
+            catch { return; }
+
+            // Prefer stored marker; fall back to computed marker
+            var marker = (!string.IsNullOrEmpty(sectionId) && sectionId.StartsWith("hsc__")) ? sectionId : sectionMarker;
+            if (!string.IsNullOrEmpty(marker))
+            {
+                var markerIds = allSections
+                    .Where(s => s.Subtitle == marker && !string.IsNullOrEmpty(s.Id))
+                    .Select(s => s.Id).ToArray();
+                if (markerIds.Length > 0)
+                {
+                    _userManager.DeleteHomeSections(userInternalId, markerIds, cancellationToken);
+                    return;
+                }
+            }
+
+            // Last resort: find by CustomName
+            try
+            {
+                var hint = _jsonSerializer.DeserializeFromString<Dictionary<string, string>>(settingsJson ?? "{}");
+                if (hint != null && hint.TryGetValue("CustomName", out var cn) && !string.IsNullOrEmpty(cn))
+                {
+                    var fallbackIds = allSections
+                        .Where(s => s.CustomName == cn && !string.IsNullOrEmpty(s.Id))
+                        .Select(s => s.Id).ToArray();
+                    if (fallbackIds.Length > 0)
+                        _userManager.DeleteHomeSections(userInternalId, fallbackIds, cancellationToken);
+                }
+            }
+            catch { }
+        }
+
+        private ContentSection BuildContentSection(Dictionary<string, string> settings, string libraryId)
+        {
+            var section = new ContentSection();
+            var props = typeof(ContentSection).GetProperties(BindingFlags.Public | BindingFlags.Instance);
+
+            // Set scalar fields (string, bool, int, long, DateTime)
+            foreach (var prop in props)
+            {
+                if (!prop.CanWrite || prop.Name == "Id" || prop.Name == "ParentId") continue;
+                if (!settings.TryGetValue(prop.Name, out var strVal) || string.IsNullOrEmpty(strVal)) continue;
+                try
+                {
+                    var t = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
+                    object converted = null;
+                    if (t == typeof(string)) converted = strVal;
+                    else if (t == typeof(bool)) converted = bool.Parse(strVal);
+                    else if (t == typeof(int)) converted = int.Parse(strVal);
+                    else if (t == typeof(long)) converted = long.Parse(strVal);
+                    else if (t == typeof(DateTime)) converted = DateTime.Parse(strVal);
+                    if (converted != null)
+                        prop.SetValue(section, converted);
+                }
+                catch { /* skip malformed value */ }
+            }
+
+            // Set string[] array fields (ItemTypes, ExcludedFolders, Monitor)
+            foreach (var prop in props)
+            {
+                if (!prop.CanWrite || prop.Name == "Id") continue;
+                if (prop.PropertyType != typeof(string[])) continue;
+                if (!settings.TryGetValue(prop.Name, out var arrVal) || string.IsNullOrEmpty(arrVal)) continue;
+                try
+                {
+                    var values = arrVal.TrimStart().StartsWith("[")
+                        ? _jsonSerializer.DeserializeFromString<string[]>(arrVal)
+                        : arrVal.Split(',').Select(s => s.Trim()).Where(s => s.Length > 0).ToArray();
+                    prop.SetValue(section, values);
+                }
+                catch { }
+            }
+
+            // Handle nested Query object (e.g. Query.TagIds for Dynamic Media tag filter)
+            if (settings.TryGetValue("_queryTagId", out var qTagId) && !string.IsNullOrEmpty(qTagId))
+            {
+                var queryProp = props.FirstOrDefault(p => p.Name == "Query");
+                if (queryProp != null)
+                {
+                    try
+                    {
+                        var queryType = queryProp.PropertyType;
+                        var queryObj = queryProp.GetValue(section) ?? Activator.CreateInstance(queryType);
+                        var tagIdsProp = queryType.GetProperty("TagIds");
+                        if (tagIdsProp != null && tagIdsProp.CanWrite && tagIdsProp.PropertyType == typeof(string[]))
+                            tagIdsProp.SetValue(queryObj, new[] { qTagId });
+                        if (queryProp.CanWrite)
+                            queryProp.SetValue(section, queryObj);
+                    }
+                    catch { }
+                }
+            }
+
+            // Inject ParentId (collection/library reference for boxset sections)
+            if (!string.IsNullOrEmpty(libraryId))
+            {
+                var parentProp = props.FirstOrDefault(p => p.Name == "ParentId" && p.CanWrite && p.PropertyType == typeof(string));
+                if (parentProp != null) parentProp.SetValue(section, libraryId);
+            }
+
+            return section;
         }
 
         private bool IsScheduleActive(List<DateInterval> intervals)

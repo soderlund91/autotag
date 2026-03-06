@@ -71,6 +71,12 @@ namespace HomeScreenCompanion
     [Route("/HomeScreenCompanion/Hsc/Status", "GET")]
     public class HscGetStatusRequest : IReturn<HscSyncStatusResponse> { }
 
+    [Route("/HomeScreenCompanion/DebugSections", "GET")]
+    public class DebugSectionsRequest : IReturn<string>
+    {
+        public string UserId { get; set; } = string.Empty;
+    }
+
 public class HomeScreenCompanionService : IService
     {
         private readonly IHttpClient _httpClient;
@@ -170,6 +176,22 @@ public class HomeScreenCompanionService : IService
             catch (Exception ex)
             {
                 return new UploadCollectionImageResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        public object Get(DebugSectionsRequest request)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(request.UserId))
+                    return "{\"error\":\"UserId is required\"}";
+                var internalId = _userManager.GetInternalId(request.UserId);
+                var result = _userManager.GetHomeSections(internalId, CancellationToken.None);
+                return _jsonSerializer.SerializeToString(result);
+            }
+            catch (Exception ex)
+            {
+                return $"{{\"error\":\"{ex.Message}\"}}";
             }
         }
 
@@ -279,6 +301,27 @@ public class HomeScreenCompanionService : IService
                     prop.SetValue(copy, prop.GetValue(source));
             }
             return copy;
+        }
+
+        public object Get(HscGetSectionSchemaRequest request)
+        {
+            var fields = typeof(ContentSection)
+                .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(p => p.CanRead && p.CanWrite && p.Name != "Id")
+                .Select(p => new HscSectionField { Name = p.Name, Type = GetSimpleTypeName(p.PropertyType) })
+                .Where(f => f.Type != null)
+                .ToList();
+            return new HscSectionSchemaResponse { Fields = fields };
+        }
+
+        private static string GetSimpleTypeName(Type t)
+        {
+            if (t == typeof(string)) return "string";
+            if (t == typeof(bool) || t == typeof(bool?)) return "bool";
+            if (t == typeof(int) || t == typeof(int?)) return "int";
+            if (t == typeof(long) || t == typeof(long?)) return "long";
+            if (t == typeof(DateTime) || t == typeof(DateTime?)) return "datetime";
+            return null;
         }
 
     }

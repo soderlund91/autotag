@@ -42,7 +42,19 @@ namespace HomeScreenCompanion
         public string CollectionPosterPath { get; set; } = "";
         public bool OnlyCollection { get; set; } = false;
 
+        public bool EnableHomeSection { get; set; } = false;
+        public List<string> HomeSectionUserIds { get; set; } = new List<string>();
+        public string HomeSectionLibraryId { get; set; } = "auto";
+        public string HomeSectionSettings { get; set; } = "{}";
+        public List<HomeSectionTracking> HomeSectionTracked { get; set; } = new List<HomeSectionTracking>();
+
         public DateTime LastModified { get; set; } = DateTime.MinValue;
+    }
+
+    public class HomeSectionTracking
+    {
+        public string UserId { get; set; } = "";
+        public string SectionId { get; set; } = "";
     }
 
     public class MediaInfoFilter

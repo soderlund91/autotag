@@ -79,6 +79,18 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             border: 1px solid rgba(128,128,128,0.3);
         }
 
+        .tag-indicator.homescreen {
+            color: #4CAF50;
+            background: rgba(76,175,80,0.15);
+            border: 1px solid rgba(76,175,80,0.35);
+        }
+
+        .tag-indicator.tag {
+            color: #FFC107;
+            background: rgba(255,193,7,0.15);
+            border: 1px solid rgba(255,193,7,0.35);
+        }
+
         .badge-container {
             display: flex;
             align-items: center;
@@ -652,6 +664,13 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
 
         var mediaInfoLimit = tagConfig.Limit || 0;
 
+        var enableHomeSection = tagConfig.EnableHomeSection ? 'checked' : '';
+        var homeSectionLibraryId = encodeURIComponent(tagConfig.HomeSectionLibraryId || 'auto');
+        var homeSectionUserIdsEnc = encodeURIComponent(JSON.stringify(tagConfig.HomeSectionUserIds || []));
+        var homeSectionSettingsEnc = encodeURIComponent(tagConfig.HomeSectionSettings || '{}');
+        var homeSectionTrackedEnc = encodeURIComponent(JSON.stringify(tagConfig.HomeSectionTracked || []));
+        var hsDefaultSectionType = tagConfig.EnableCollection ? 'boxset' : 'items';
+
         var mediaFilters = (tagConfig.MediaInfoFilters && tagConfig.MediaInfoFilters.length > 0)
             ? tagConfig.MediaInfoFilters
             : ((tagConfig.MediaInfoConditions && tagConfig.MediaInfoConditions.length > 0)
@@ -669,16 +688,11 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         if (tagConfig.EnableCollection) {
             indicatorsHtml += `<span class="tag-indicator collection"><i class="md-icon" style="font-size:1.1em;">library_books</i> Collection</span>`;
         }
-
-        var sourceCount = 0;
-        var sourceLabel = "SOURCE(S)";
-        if (sourceType === 'External') {
-            sourceCount = urls.length;
-        } else if (sourceType === 'LocalCollection' || sourceType === 'LocalPlaylist') {
-            sourceCount = localSources.length;
-        } else if (sourceType === 'MediaInfo') {
-            sourceCount = mediaFilters.length;
-            sourceLabel = "FILTER(S)";
+        if (tagConfig.EnableHomeSection) {
+            indicatorsHtml += `<span class="tag-indicator homescreen"><i class="md-icon" style="font-size:1.1em;">home</i> Home Section</span>`;
+        }
+        if (tagConfig.EnableTag) {
+            indicatorsHtml += `<span class="tag-indicator tag"><i class="md-icon" style="font-size:1.1em;">label</i> Tag</span>`;
         }
 
         var initialStyle = isNew ? 'display:block;' : 'display:none;';
@@ -703,7 +717,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     </div>
                     <div class="tag-info" style="display:flex; align-items:center;">
                         <span class="tag-title" style="font-weight:bold; font-size:1.1em;">${labelName || tagName || 'New'}</span>
-                        <span class="tag-status" style="margin-left:10px; font-size:0.8em; opacity:0.7;">${sourceCount} ${sourceLabel}</span>
                         <span class="badge-container" style="display:flex; align-items:center;">${indicatorsHtml}</span>
                     </div>
                 </div>
@@ -716,6 +729,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     <div class="tag-tab" data-tab="collection" style="padding: 8px 0; cursor: pointer; opacity: 0.6; font-weight: bold; border-bottom: 2px solid transparent;">Collection</div>
                     <div class="tag-tab" data-tab="schedule" style="padding: 8px 0; cursor: pointer; opacity: 0.6; font-weight: bold; border-bottom: 2px solid transparent;">Schedule</div>
                     <div class="tag-tab" data-tab="advanced" style="padding: 8px 0; cursor: pointer; opacity: 0.6; font-weight: bold; border-bottom: 2px solid transparent;">Blacklist</div>
+                    <div class="tag-tab" data-tab="homescreen" style="padding: 8px 0; cursor: pointer; opacity: 0.6; font-weight: bold; border-bottom: 2px solid transparent;">Home Screen</div>
                 </div>
                 
                 <div class="tab-content general-tab">
@@ -838,6 +852,32 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     </div>
                 </div>
 
+                <div class="tab-content homescreen-tab" style="display:none;"
+                    data-hse-libraryid="${homeSectionLibraryId}"
+                    data-hse-userids="${homeSectionUserIdsEnc}"
+                    data-hse-settings="${homeSectionSettingsEnc}"
+                    data-hse-tracked="${homeSectionTrackedEnc}"
+                    data-hse-default-type="${hsDefaultSectionType}"
+                    data-hse-loaded="0">
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input is="emby-checkbox" class="chkEnableHomeSection" type="checkbox" ${enableHomeSection}/>
+                            <span>Add as home screen section</span>
+                        </label>
+                        <div class="fieldDescription">A home screen section will be managed for selected users each time sync runs.</div>
+                    </div>
+                    <div class="hse-details" style="display:${enableHomeSection ? 'block' : 'none'}; margin-top:15px;">
+                        <div style="margin-bottom:15px;">
+                            <p style="margin:0 0 8px 0; font-size:0.9em; font-weight:bold; opacity:0.7;">Target Users</p>
+                            <div class="hse-user-list-inner"><em style="opacity:0.5">Loading users...</em></div>
+                        </div>
+                        <div>
+                            <p style="margin:0 0 8px 0; font-size:0.9em; font-weight:bold; opacity:0.7;">Section Settings</p>
+                            <div class="hse-fields-inner"><em style="opacity:0.5">Loading settings...</em></div>
+                        </div>
+                    </div>
+                </div>
+
                 <div style="text-align:right; margin-top:20px; border-top:1px solid var(--line-color); padding-top:10px;"><button is="emby-button" type="button" class="raised btnRemoveGroup" style="background:#cc3333 !important; color:#fff;"><i class="md-icon" style="margin-right:5px;">delete</i>Remove Group</button></div>
             </div>
         </div>`;
@@ -860,6 +900,8 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
 
             var hasSchedule = row.querySelectorAll('.date-row').length > 0;
             var hasCollection = row.querySelector('.chkEnableCollection').checked;
+            var hasHomeSection = row.querySelector('.chkEnableHomeSection').checked;
+            var hasTag = row.querySelector('.chkEnableTag').checked;
 
             var html = '';
             if (hasSchedule) {
@@ -867,6 +909,12 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             }
             if (hasCollection) {
                 html += `<span class="tag-indicator collection"><i class="md-icon" style="font-size:1.1em;">library_books</i> Collection</span>`;
+            }
+            if (hasHomeSection) {
+                html += `<span class="tag-indicator homescreen"><i class="md-icon" style="font-size:1.1em;">home</i> Home Section</span>`;
+            }
+            if (hasTag) {
+                html += `<span class="tag-indicator tag"><i class="md-icon" style="font-size:1.1em;">label</i> Tag</span>`;
             }
             container.innerHTML = html;
         }
@@ -881,6 +929,8 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 row.querySelector('.schedule-tab').style.display = target === 'schedule' ? 'block' : 'none';
                 row.querySelector('.collection-tab').style.display = target === 'collection' ? 'block' : 'none';
                 row.querySelector('.advanced-tab').style.display = target === 'advanced' ? 'block' : 'none';
+                row.querySelector('.homescreen-tab').style.display = target === 'homescreen' ? 'block' : 'none';
+                if (target === 'homescreen') initHomeSectionTab(row);
             });
         });
 
@@ -902,7 +952,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     row.querySelector('.local-list-container').innerHTML = getLocalRowHtml(type, "", 0);
                     row.querySelector('.local-type-label').textContent = type === 'LocalPlaylist' ? "Select Playlists" : "Select Collections";
                 }
-                updateCount(row);
             }
             
             if (e.target.classList.contains('selMiProperty')) {
@@ -927,12 +976,26 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             }
             if (e.target.classList.contains('chkEnableTag')) {
                 row.querySelector('.tag-settings').style.display = e.target.checked ? 'block' : 'none';
+                updateBadges(row);
             }
             if (e.target.classList.contains('chkEnableCollection')) {
                 var settingsDiv = row.querySelector('.collection-settings');
                 settingsDiv.style.display = e.target.checked ? 'block' : 'none';
+                updateBadges(row);
+            }
 
-
+            if (e.target.classList.contains('chkEnableHomeSection')) {
+                if (e.target.checked) {
+                    var hasTag = !!(row.querySelector('.chkEnableTag') || {}).checked;
+                    var hasColl = !!(row.querySelector('.chkEnableCollection') || {}).checked;
+                    if (!hasTag && !hasColl) {
+                        e.target.checked = false;
+                        window.Dashboard.alert('Enable either "Tag" or "Collection" for this entry before adding it as a home screen section.');
+                        return;
+                    }
+                }
+                var hseDetails = row.querySelector('.hse-details');
+                if (hseDetails) hseDetails.style.display = e.target.checked ? 'block' : 'none';
                 updateBadges(row);
             }
         });
@@ -956,13 +1019,11 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
 
         row.querySelector('.btnAddUrl').addEventListener('click', () => {
             row.querySelector('.url-list-container').insertAdjacentHTML('beforeend', getUrlRowHtml('', 0));
-            updateCount(row);
         });
 
         row.querySelector('.btnAddLocal').addEventListener('click', () => {
             var st = row.querySelector('.selSourceType').value;
             row.querySelector('.local-list-container').insertAdjacentHTML('beforeend', getLocalRowHtml(st, "", 0));
-            updateCount(row);
         });
 
         row.querySelector('.btnAddDate').addEventListener('click', () => {
@@ -973,12 +1034,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         row.addEventListener('click', e => {
             if (e.target.closest('.btnRemoveUrl')) {
                 e.target.closest('.url-row').remove();
-                updateCount(row);
             }
 
             if (e.target.closest('.btnRemoveLocal')) {
                 e.target.closest('.local-row').remove();
-                updateCount(row);
             }
 
             if (e.target.closest('.btnRemoveDate')) {
@@ -990,7 +1049,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 var list = row.querySelector('.mediainfo-filter-list');
                 var idx = list.querySelectorAll('.mediainfo-filter-group').length;
                 list.insertAdjacentHTML('beforeend', getMediaInfoFilterGroupHtml({ Operator: 'AND', Criteria: [], GroupOperator: 'AND' }, idx, false));
-                updateCount(row);
             }
 
             if (e.target.closest('.btnRemoveFilterGroup')) {
@@ -998,7 +1056,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 var miList = row.querySelector('.mediainfo-filter-list');
                 var firstGroup = miList && miList.querySelector('.mediainfo-filter-group');
                 if (firstGroup) { var conn = firstGroup.querySelector('.mi-group-connector'); if (conn) conn.remove(); }
-                updateCount(row);
             }
 
             if (e.target.closest('.btnGroupOpChoice')) {
@@ -1049,12 +1106,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             if (e.target.closest('.btnAddMiRule')) {
                 var rulesList = e.target.closest('.mediainfo-filter-group').querySelector('.mi-rules-list');
                 rulesList.insertAdjacentHTML('beforeend', getMediaInfoRuleHtml(''));
-                updateCount(row);
             }
 
             if (e.target.closest('.btnRemoveMiRule')) {
                 e.target.closest('.mi-rule').remove();
-                updateCount(row);
             }
 
             if (e.target.closest('.btnRemoveGroup')) {
@@ -1080,6 +1135,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             var lbl = row.querySelector('.txtEntryLabel').value;
             var tag = row.querySelector('.txtTagName').value;
             row.querySelector('.tag-title').textContent = lbl || tag || 'New';
+            updateBadges(row);
         }
         row.querySelector('.txtEntryLabel').addEventListener('input', updateTagTitle);
         row.querySelector('.txtTagName').addEventListener('input', updateTagTitle);
@@ -1205,22 +1261,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         });
     }
 
-    function updateCount(row) {
-        var sourceType = row.querySelector('.selSourceType').value;
-        var count = 0;
-        var label = "SOURCE(S)";
-        
-        if (sourceType === 'External') {
-            count = row.querySelectorAll('.url-row').length;
-        } else if (sourceType === 'LocalCollection' || sourceType === 'LocalPlaylist') {
-            count = row.querySelectorAll('.local-row').length;
-        } else if (sourceType === 'MediaInfo') {
-            count = row.querySelectorAll('.mi-rule').length;
-            label = "RULE(S)";
-        }
-        
-        row.querySelector('.tag-status').textContent = count + " " + label;
-    }
 
     function refreshStatus(view) {
         var myId = ++statusRequestId;
@@ -1300,6 +1340,136 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         else container.classList.remove('sort-hidden');
     }
 
+    // ---- Home Section Tab helpers ----
+    var _hseUsersCache = null;
+    function getHseUsers() {
+        if (_hseUsersCache) return Promise.resolve(_hseUsersCache);
+        return window.ApiClient.getJSON(window.ApiClient.getUrl('Users', { IsDisabled: false }))
+            .then(function(users) {
+                _hseUsersCache = (users || []).map(function(u) { return { Id: u.Id, Name: u.Name }; });
+                return _hseUsersCache;
+            });
+    }
+
+
+
+    function buildHomeSectionFormHtml(savedSettings, defaultSectionType) {
+        var s = savedSettings || {};
+        var html = '';
+
+        var st = s.SectionType || defaultSectionType || 'items';
+        html += '<div style="margin-bottom:12px;"><label class="selectLabel">Section Type</label>';
+        html += '<select is="emby-select" class="selHseSectionType hse-field-str" data-field="SectionType" style="width:100%;">';
+        [['boxset','Single Collection'],['items','Dynamic Media (tag)']].forEach(function(o) {
+            html += '<option value="' + o[0] + '"' + (st === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+        });
+        html += '</select></div>';
+
+        var savedItemTypes = [];
+        try { savedItemTypes = JSON.parse(s.ItemTypes || '[]'); } catch {}
+        html += '<div style="margin-bottom:12px;"><label class="selectLabel">Item Types <span style="opacity:0.6;font-size:0.85em;">(Dynamic Media only)</span></label>';
+        html += '<div style="display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:4px;">';
+        ['Movie','Series','Episode','MusicVideo'].forEach(function(t) {
+            var chk = savedItemTypes.indexOf(t) !== -1 ? ' checked' : '';
+            html += '<label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="chkHseItemType" value="' + t + '"' + chk + '/><span>' + t + '</span></label>';
+        });
+        html += '</div></div>';
+
+        var customName = (s.CustomName || '').replace(/"/g, '&quot;');
+        html += '<div style="margin-bottom:12px;"><input is="emby-input" type="text" class="hse-field-str" data-field="CustomName" label="Custom Title" value="' + customName + '"/></div>';
+
+        var imgTypeVal = s.ImageType || '';
+        html += '<div style="margin-bottom:12px;"><label class="selectLabel">Image Type</label>';
+        html += '<select is="emby-select" class="hse-field-str" data-field="ImageType" style="width:100%;"><option value="">(Default)</option>';
+        ['Primary','Backdrop','Thumb'].forEach(function(o) { html += '<option value="' + o + '"' + (imgTypeVal === o ? ' selected' : '') + '>' + o + '</option>'; });
+        html += '</select></div>';
+
+        var sortByVal = s.SortBy || '';
+        html += '<div style="margin-bottom:12px;"><label class="selectLabel">Sort By</label>';
+        html += '<select is="emby-select" class="hse-field-str" data-field="SortBy" style="width:100%;">';
+        html += '<option value=""' + (sortByVal === '' ? ' selected' : '') + '>(Default)</option>';
+        [['CommunityRating','Rating'],['DateCreated','Date Added'],['SortName','Name'],
+         ['Runtime','Runtime'],['PremiereDate','Release Date'],['ProductionYear','Year'],['Random','Random']].forEach(function(o) {
+            html += '<option value="' + o[0] + '"' + (sortByVal === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+        });
+        html += '</select></div>';
+
+        var sortOrderVal = s.SortOrder || '';
+        html += '<div style="margin-bottom:12px;"><label class="selectLabel">Sort Order</label>';
+        html += '<select is="emby-select" class="hse-field-str" data-field="SortOrder" style="width:100%;">';
+        html += '<option value=""' + (sortOrderVal === '' ? ' selected' : '') + '>(Default)</option>';
+        [['Ascending','Ascending'],['Descending','Descending']].forEach(function(o) { html += '<option value="' + o[0] + '"' + (sortOrderVal === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; });
+        html += '</select></div>';
+
+        var dispModeVal = s.DisplayMode || '';
+        html += '<div style="margin-bottom:12px;"><label class="selectLabel">Scroll Direction</label>';
+        html += '<select is="emby-select" class="hse-field-str" data-field="DisplayMode" style="width:100%;"><option value="">(Default)</option>';
+        [['Horizontal','Horizontal'],['Vertical','Vertical']].forEach(function(o) { html += '<option value="' + o[0] + '"' + (dispModeVal === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; });
+        html += '</select></div>';
+
+        return html;
+    }
+
+    function wireHomeSectionTypeChange(tab) {
+        var stSel = tab.querySelector('.selHseSectionType');
+        if (!stSel) return;
+        stSel.addEventListener('change', function() {
+            var row = tab.closest('.tag-row');
+            if (!row) return;
+            var selected = stSel.value;
+            if (selected === 'items') {
+                var tagEnabled = !!(row.querySelector('.chkEnableTag') || {}).checked;
+                if (!tagEnabled) {
+                    stSel.value = tab.dataset.hseDefaultType || 'boxset';
+                    window.Dashboard.alert('"Dynamic Media (tag)" requires "Enable Tag" to be checked for this entry.');
+                }
+            } else if (selected === 'boxset') {
+                var collEnabled = !!(row.querySelector('.chkEnableCollection') || {}).checked;
+                if (!collEnabled) {
+                    stSel.value = tab.dataset.hseDefaultType || 'items';
+                    window.Dashboard.alert('"Single Collection" requires "Enable Collection" to be checked for this entry.');
+                }
+            }
+        });
+    }
+
+    function initHomeSectionTab(row) {
+        var tab = row.querySelector('.homescreen-tab');
+        if (!tab || tab.dataset.hseLoaded === '1') return;
+        tab.dataset.hseLoaded = 'loading'; // prevent re-entry while loading
+
+        var savedUserIds = [];
+        var savedSettings = {};
+        try { savedUserIds = JSON.parse(decodeURIComponent(tab.dataset.hseUserids || '%5B%5D')); } catch {}
+        try { savedSettings = JSON.parse(decodeURIComponent(tab.dataset.hseSettings || '%7B%7D')); } catch {}
+        var defaultSectionType = tab.dataset.hseDefaultType || 'items';
+
+        getHseUsers()
+            .then(function(users) {
+
+                // User list
+                var userHtml = '';
+                users.forEach(function(u) {
+                    var chk = savedUserIds.indexOf(u.Id) !== -1 ? 'checked' : '';
+                    userHtml += '<div style="margin:4px 0;"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" is="emby-checkbox" class="chkHseUser" value="' + u.Id + '" ' + chk + '/><span>' + u.Name + '</span></label></div>';
+                });
+                tab.querySelector('.hse-user-list-inner').innerHTML = userHtml || '<em style="opacity:0.5">No users found</em>';
+
+                // Structured section settings form
+                tab.querySelector('.hse-fields-inner').innerHTML = buildHomeSectionFormHtml(savedSettings, defaultSectionType);
+                wireHomeSectionTypeChange(tab);
+
+                // Mark as fully loaded only after form is in DOM so getUiConfig reads form values
+                tab.dataset.hseLoaded = '1';
+                setTimeout(checkFormState, 0);
+            })
+            .catch(function(e) {
+                tab.querySelector('.hse-fields-inner').innerHTML = '<em style="color:#cc4444">Failed to load: ' + e.message + '</em>';
+                tab.dataset.hseLoaded = '0'; // allow retry
+            });
+    }
+    // ---- End Home Section Tab helpers ----
+
     function getUiConfig(view, forComparison) {
         var flatTags = [];
         view.querySelectorAll('.tag-row').forEach(row => {
@@ -1365,10 +1535,34 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 if (criteria.length > 0) miFilters.push({ Operator: operator, Criteria: criteria, GroupOperator: groupOp });
             });
 
+            var hseTab = row.querySelector('.homescreen-tab');
+            var enableHse = hseTab ? !!(hseTab.querySelector('.chkEnableHomeSection') || {}).checked : false;
+            var hseLibraryId = hseTab && hseTab.dataset.hseLoaded === '1'
+                ? ((hseTab.querySelector('.selHseLibrary') || {}).value || 'auto')
+                : decodeURIComponent((hseTab && hseTab.dataset.hseLibraryid) || 'auto');
+            var hseUserIds = hseTab && hseTab.dataset.hseLoaded === '1'
+                ? Array.from(hseTab.querySelectorAll('.chkHseUser:checked')).map(function(c) { return c.value; })
+                : (function() { try { return JSON.parse(decodeURIComponent((hseTab && hseTab.dataset.hseUserids) || '%5B%5D')); } catch { return []; } })();
+            var hseSettings = {};
+            if (hseTab && hseTab.dataset.hseLoaded === '1') {
+                hseTab.querySelectorAll('[data-field]').forEach(function(el) {
+                    var f = el.dataset.field;
+                    var v = el.type === 'checkbox' ? String(el.checked) : el.value;
+                    if (v !== '') hseSettings[f] = v;
+                });
+                var itemTypes = Array.from(hseTab.querySelectorAll('.chkHseItemType:checked')).map(function(c) { return c.value; });
+                if (itemTypes.length > 0) hseSettings['ItemTypes'] = JSON.stringify(itemTypes);
+            } else {
+                try { hseSettings = JSON.parse(decodeURIComponent((hseTab && hseTab.dataset.hseSettings) || '%7B%7D')); } catch {}
+            }
+            var hseTracked = (function() { try { return JSON.parse(decodeURIComponent((hseTab && hseTab.dataset.hseTracked) || '%5B%5D')); } catch { return []; } })();
+
             var baseTag = {
                 Name: entryLabel, Tag: name, Active: active, Blacklist: bl, ActiveIntervals: intervals,
                 EnableTag: enableTagChk, EnableCollection: enableColl, CollectionName: collName, CollectionDescription: collDescription, CollectionPosterPath: collPoster, OnlyCollection: false, OverrideWhenActive: overrideWhenActive, LastModified: currentLastMod,
-                SourceType: st, MediaInfoFilters: miFilters, MediaInfoConditions: []
+                SourceType: st, MediaInfoFilters: miFilters, MediaInfoConditions: [],
+                EnableHomeSection: enableHse, HomeSectionLibraryId: hseLibraryId, HomeSectionUserIds: hseUserIds,
+                HomeSectionSettings: JSON.stringify(hseSettings), HomeSectionTracked: hseTracked
             };
 
             if (st === 'External') {
@@ -1528,7 +1722,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     Tag: t.Tag, Name: t.Name || '', Urls: [], LocalSources: [], Active: t.Active !== false, Blacklist: t.Blacklist, ActiveIntervals: t.ActiveIntervals,
                     EnableTag: t.EnableTag !== false, EnableCollection: t.EnableCollection, CollectionName: t.CollectionName, CollectionDescription: t.CollectionDescription || '', CollectionPosterPath: t.CollectionPosterPath || '', OnlyCollection: t.OnlyCollection, OverrideWhenActive: t.OverrideWhenActive || false, LastModified: t.LastModified,
                     SourceType: t.SourceType || "External", MediaInfoConditions: t.MediaInfoConditions || [], MediaInfoFilters: t.MediaInfoFilters || [],
-                    Limit: t.Limit || 0
+                    Limit: t.Limit || 0,
+                    EnableHomeSection: t.EnableHomeSection || false, HomeSectionLibraryId: t.HomeSectionLibraryId || 'auto',
+                    HomeSectionUserIds: t.HomeSectionUserIds || [], HomeSectionSettings: t.HomeSectionSettings || '{}',
+                    HomeSectionTracked: t.HomeSectionTracked || []
                 };
             }
             if (t.SourceType === 'External' && t.Url) grouped[key].Urls.push({ url: t.Url, limit: t.Limit });
@@ -1660,7 +1857,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 container.innerHTML = [
                     '<div class="hsc-card">',
                     '<h3 class="hsc-section-title">Manage Home Screen</h3>',
-                    '<p class="textMuted" style="font-size:0.88em;margin-bottom:16px;">Select a user to view and manage their home screen sections. Drag rows to reorder, then click Save and remember to run the program for settings to take effect.</p>',
+                    '<p class="textMuted" style="font-size:0.88em;margin-bottom:16px;">Select a user to view and manage their home screen sections. Drag rows to reorder, then click Save or Apply (changes will take effect immediately).</p>',
                     '<div style="display:flex;align-items:flex-end;gap:10px;margin-bottom:20px;">',
                     '<div style="flex-grow:1;">',
                     '<select is="emby-select" id="selManageUser" label="User">',
@@ -2156,7 +2353,20 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 }
             });
 
-            window.ApiClient.updatePluginConfiguration(pluginId, configObj).then(r => {
+            // Pre-fetch current config to preserve HomeSectionTracked set by the sync task
+            // (UI dataset may be stale if sync ran after page load)
+            window.ApiClient.getPluginConfiguration(pluginId).catch(function() { return { Tags: [] }; }).then(function(currentConfig) {
+                var currentGrouped = groupConfigTags(currentConfig.Tags);
+                configObj.Tags.forEach(function(t) {
+                    var key = t.Name ? t.Name + '\x1F' + t.Tag : t.Tag;
+                    var existing = currentGrouped[key];
+                    if (existing && existing.HomeSectionTracked && existing.HomeSectionTracked.length > 0
+                        && (!t.HomeSectionTracked || t.HomeSectionTracked.length === 0)) {
+                        t.HomeSectionTracked = existing.HomeSectionTracked;
+                    }
+                });
+                return window.ApiClient.updatePluginConfiguration(pluginId, configObj);
+            }).then(r => {
                 window.Dashboard.processPluginConfigurationUpdateResult(r);
 
                 var newGrouped = groupConfigTags(configObj.Tags);
@@ -2164,8 +2374,15 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     var name = row.querySelector('.txtEntryLabel').value;
                     var tagName = row.querySelector('.txtTagName').value || name;
                     var key = name ? name + '\x1F' + tagName : tagName;
-                    if (newGrouped[key]) {
-                        row.dataset.lastModified = newGrouped[key].LastModified;
+                    var tc = newGrouped[key];
+                    if (tc) {
+                        row.dataset.lastModified = tc.LastModified;
+                        var hseTab = row.querySelector('.homescreen-tab');
+                        if (hseTab) {
+                            hseTab.dataset.hseTracked = encodeURIComponent(JSON.stringify(tc.HomeSectionTracked || []));
+                            hseTab.dataset.hseSettings = encodeURIComponent(tc.HomeSectionSettings || '{}');
+                            hseTab.dataset.hseUserids = encodeURIComponent(JSON.stringify(tc.HomeSectionUserIds || []));
+                        }
                     }
                 });
 
