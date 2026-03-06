@@ -57,6 +57,19 @@ Tag items based on their actual technical properties—no manual curation requir
 * Tag content suitable for a specific setup → `DTS-HD MA OR Atmos`
 
 ### 🏠 Home Screen
+Two complementary features let you fully control home screen sections for all your users.
+
+#### Per-entry Home Screen Sections
+Add a dedicated home screen section directly from any tag/collection entry — without touching Emby's own home screen settings.
+
+* **Single Collection** — creates a `boxset` section that shows the items in the entry's managed Emby Collection. Requires *Create Collection* to be enabled on the entry.
+* **Dynamic Media (tag)** — creates an `items` section filtered by the entry's tag, so only tagged items appear. Requires *Enable Tag* to be enabled.
+* **Item Types** — choose which item types to include (Movie, Series, Episode, MusicVideo).
+* **Custom Title, Image Type, Sort By, Sort Order, Scroll Direction** — all configurable per section.
+* **Target users** — select which users get the section.
+* The section is automatically **created, updated, and removed** each time the sync task runs — no manual work needed.
+
+#### Home Screen Copy (Manage tab)
 Keep home screen sections in sync across all your Emby users—automatically.
 * **Source user** — pick one user whose home screen layout is the "master" configuration.
 * **Target users** — select one or more users whose home screens will be updated to mirror the source.
@@ -130,6 +143,38 @@ Each source is configured across four tabs:
 | **Blacklist** | Comma-separated IMDB IDs to ignore (e.g., `tt1234567`). |
 | **MediaInfo Filter** | Rule-based filter to restrict which items in the list get tagged. |
 
+#### 🏠 Home Screen Tab
+| Setting | Description |
+| :--- | :--- |
+| **Add as home screen section** | Enable to let the plugin manage a home screen section for this entry. |
+| **Section Type** | *Single Collection* — shows the managed collection as a boxset row. *Dynamic Media (tag)* — shows items filtered by this entry's tag. |
+| **Item Types** | Which item types to include in the section (Movie, Series, Episode, MusicVideo). Applies to Dynamic Media only. |
+| **Custom Title** | Override the section's display name on the home screen. |
+| **Image Type** | Card image style: Default, Primary, Backdrop, or Thumb. |
+| **Sort By** | How items are ordered: Default, Rating, Date Added, Name, Runtime, Release Date, Year, or Random. |
+| **Sort Order** | Ascending or Descending (Default lets Emby decide). |
+| **Scroll Direction** | Horizontal or Vertical scroll (Default lets Emby decide). |
+| **Target Users** | Which users get this home screen section. |
+
+> **Note:** For *Single Collection*, the entry must have *Create Collection* enabled. For *Dynamic Media (tag)*, the entry must have *Enable Tag* enabled.
+
+---
+
+### 🏠 Home Screen tab (Home Screen Companion)
+
+The **Home Screen** tab at the top of the plugin page has two sub-tabs:
+
+#### Manage
+Copy the entire home screen layout from a source user to one or more target users.
+
+| Setting | Description |
+| :--- | :--- |
+| **Enable sync** | Turn the copy feature on or off. |
+| **Source user** | The user whose home screen layout is used as the master. |
+| **Target users** | Users whose home screens will be overwritten to match the source. |
+
+#### Copy
+Manually trigger or view the status of the home screen copy sync. Shows last run time, result, and number of sections copied.
 
 ---
 
