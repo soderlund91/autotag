@@ -11,6 +11,7 @@ namespace HomeScreenCompanion
         public bool ExtendedConsoleOutput { get; set; } = false;
         public bool DryRunMode { get; set; } = false;
         public List<TagConfig> Tags { get; set; } = new List<TagConfig>();
+        public List<SavedMediaInfoFilter> SavedFilters { get; set; } = new List<SavedMediaInfoFilter>();
 
         public bool HomeSyncEnabled { get; set; } = false;
         public string HomeSyncSourceUserId { get; set; } = "";
@@ -62,6 +63,12 @@ namespace HomeScreenCompanion
         public string Operator { get; set; } = "AND";
         public List<string> Criteria { get; set; } = new List<string>();
         public string GroupOperator { get; set; } = "AND";
+    }
+
+    public class SavedMediaInfoFilter
+    {
+        public string Name { get; set; } = "";
+        public List<MediaInfoFilter> Filters { get; set; } = new List<MediaInfoFilter>();
     }
 
     public class DateInterval

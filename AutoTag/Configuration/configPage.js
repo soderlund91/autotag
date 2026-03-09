@@ -11,6 +11,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
     var cachedTags = [];
     var lastHscConfig = {};
     var currentManageSections = [];
+    var savedFilters = [];
 
     var customCss = `
     <style id="homeScreenCompanionCustomCss">
@@ -729,6 +730,86 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             '</div>';
     }
 
+    function escapeHtml(str) {
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function readMiFiltersFromContainer(container) {
+        var miFilters = [];
+        container.querySelectorAll('.mediainfo-filter-group').forEach(function (group, gi) {
+            var operator = group.dataset.op || 'AND';
+            var groupOp = gi === 0 ? 'AND' : (group.dataset.groupOp || 'AND');
+            var criteria = [];
+            group.querySelectorAll('.mi-rule').forEach(function (rule) {
+                var prop = (rule.querySelector('.selMiProperty') || {}).value || '';
+                var selVal = rule.querySelector('.selMiValue');
+                var txtVal = rule.querySelector('.txtMiValue');
+                var selOp  = rule.querySelector('.selMiOp');
+                var txtNum = rule.querySelector('.txtMiNum');
+                var selUser = rule.querySelector('.selMiUser');
+                var selTextOp = rule.querySelector('.selMiTextOp');
+                var val = selVal ? selVal.value : (txtVal ? txtVal.value.trim() : '');
+                var op2 = selOp ? selOp.value : '';
+                var textMatchOp = selTextOp ? selTextOp.value : '';
+                var num = txtNum ? txtNum.value.trim() : '';
+                var userId = selUser ? selUser.value : '';
+                var finalOp = op2 || textMatchOp;
+                var finalVal = op2 ? num : val;
+                var notBtn = rule.querySelector('.btnNotToggle');
+                var isNot = notBtn && notBtn.dataset.not === '1';
+                var crit = buildCriterion(prop, finalOp, finalVal, userId);
+                if (crit) criteria.push(isNot ? '!' + crit : crit);
+            });
+            if (criteria.length > 0) miFilters.push({ Operator: operator, Criteria: criteria, GroupOperator: groupOp });
+        });
+        return miFilters;
+    }
+
+    function getMySavedFiltersPanelHtml() {
+        if (savedFilters.length === 0) {
+            return '<div style="font-size:0.82em; color:var(--theme-text-secondary); font-style:italic; margin-bottom:4px;">No saved filters yet.</div>';
+        }
+        return '<div style="display:flex; flex-wrap:wrap; gap:6px;">' +
+            savedFilters.map(function (sf, i) {
+                return '<div style="display:flex; align-items:center; gap:0;">' +
+                    '<button type="button" class="btnApplyMySavedFilter" data-index="' + i + '"' +
+                    ' style="border:1.5px solid #000; border-radius:14px 0 0 14px; padding:4px 10px; font-size:0.82em; cursor:pointer; background:transparent; color:var(--theme-text-primary);">' +
+                    escapeHtml(sf.Name) + '</button>' +
+                    '<button type="button" class="btnDeleteMySavedFilter" data-index="' + i + '"' +
+                    ' style="border:1.5px solid #000; border-left:none; border-radius:0 14px 14px 0; background:transparent; color:#cc3333; cursor:pointer; padding:4px 8px; font-size:0.82em; line-height:1;" title="Delete">✕</button>' +
+                    '</div>';
+            }).join('') +
+            '</div>';
+    }
+
+    function refreshMySavedFiltersPanels() {
+        var v = document.querySelector('#HomeScreenCompanionConfigPage');
+        if (!v) return;
+        var html = getMySavedFiltersPanelHtml();
+        v.querySelectorAll('.mi-saved-panel-content').forEach(function (el) {
+            el.innerHTML = html;
+        });
+    }
+
+    function saveSavedFiltersNow() {
+        window.ApiClient.getPluginConfiguration(pluginId)
+            .then(function (currentConfig) {
+                currentConfig.SavedFilters = savedFilters;
+                return window.ApiClient.updatePluginConfiguration(pluginId, currentConfig);
+            })
+            .then(function () {
+                if (originalConfigState) {
+                    try {
+                        var state = JSON.parse(originalConfigState);
+                        state.SavedFilters = savedFilters;
+                        originalConfigState = JSON.stringify(state);
+                    } catch (e) {}
+                }
+                var view = document.querySelector('#HomeScreenCompanionConfigPage');
+                if (view) checkFormState();
+            });
+    }
+
     function renderTagGroup(tagConfig, container, prepend, index, isNew) {
         var isChecked = tagConfig.Active !== false ? 'checked' : '';
         var tagName = tagConfig.Tag || '';
@@ -854,23 +935,37 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     </div>
 
                     <div class="source-mediainfo-container" style="display: ${sourceType === 'MediaInfo' ? 'block' : 'none'};">
-                        <div class="mediainfo-filter-list">${filterGroupsHtml}</div>
-                        <button type="button" is="emby-button" class="btnPremadeFilters raised btn-neutral" style="width:100%; margin-bottom:6px; background:transparent; border:1px solid var(--line-color); color:var(--theme-text-secondary);"><i class="md-icon" style="margin-right:5px;">auto_awesome</i>Premade filters</button>
-                        <div class="mi-preset-panel" style="display:none; border:1px solid var(--line-color); border-radius:6px; padding:10px 12px; margin-bottom:8px; background:rgba(128,128,128,0.06);">
-                            <div style="font-size:0.8em; color:var(--theme-text-secondary); margin-bottom:10px;">Select a preset to replace the current filters:</div>
-                            ${MI_PRESETS.map(function(cat, ci) {
-                                return '<div style="margin-bottom:10px;">' +
-                                    '<div style="font-size:0.72em; text-transform:uppercase; letter-spacing:1px; color:var(--theme-text-secondary); margin-bottom:5px;">' + cat.label + '</div>' +
-                                    '<div style="display:flex; flex-wrap:wrap; gap:6px;">' +
-                                    cat.presets.map(function(p, pi) {
-                                        return '<button type="button" class="btnApplyMiPreset" data-preset="' + ci + ',' + pi + '"' +
-                                            ' style="border:1.5px solid #000; border-radius:14px; padding:4px 12px; font-size:0.82em; cursor:pointer; background:transparent; color:var(--theme-text-primary);">' + p.name + '</button>';
-                                    }).join('') + '</div></div>';
-                            }).join('')}
+                        <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+                            <label style="font-size:0.9em; white-space:nowrap; margin:0;">Max items</label>
+                            <input is="emby-input" class="txtMediaInfoLimit" type="number" value="${mediaInfoLimit}" min="0" style="width:90px;" />
                         </div>
-                        <button type="button" is="emby-button" class="btnAddMediaInfoFilter raised" style="width:100%; background:transparent; border:2px dashed rgba(128,128,128,0.4); color:var(--theme-text-secondary); margin-top:4px;"><i class="md-icon" style="margin-right:5px;">add</i>Add Filter</button>
-                        <div style="width:110px; margin-top:15px;">
-                            <input is="emby-input" class="txtMediaInfoLimit" type="number" label="Max (0=All)" value="${mediaInfoLimit}" min="0" />
+                        <div class="mediainfo-filter-list">${filterGroupsHtml}</div>
+                        <button type="button" is="emby-button" class="btnAddMediaInfoFilter raised" style="width:100%; background:transparent; border:2px dashed rgba(128,128,128,0.4); color:var(--theme-text-secondary); margin-top:8px;"><i class="md-icon" style="margin-right:5px;">add</i>Add Filter</button>
+                        <div style="margin-top:30px; border-top:1px solid var(--line-color); padding-top:12px;">
+                            <button type="button" is="emby-button" class="btnPremadeFilters raised btn-neutral" style="width:100%; margin-bottom:6px; background:transparent; border:1px solid var(--line-color); color:var(--theme-text-secondary); display:flex; align-items:center; justify-content:space-between;"><span><i class="md-icon" style="margin-right:5px;">auto_awesome</i>Premade filters</span><i class="md-icon mi-expand-icon" style="transition:transform 0.2s; font-size:1.2em;">expand_more</i></button>
+                            <div class="mi-preset-panel" style="display:none; border:1px solid var(--line-color); border-radius:6px; padding:10px 12px; margin-bottom:8px; background:rgba(128,128,128,0.06);">
+                                <div style="font-size:0.8em; color:var(--theme-text-secondary); margin-bottom:10px;">Select a preset to replace the current filters:</div>
+                                ${MI_PRESETS.map(function(cat, ci) {
+                                    return '<div style="margin-bottom:10px;">' +
+                                        '<div style="font-size:0.72em; text-transform:uppercase; letter-spacing:1px; color:var(--theme-text-secondary); margin-bottom:5px;">' + cat.label + '</div>' +
+                                        '<div style="display:flex; flex-wrap:wrap; gap:6px;">' +
+                                        cat.presets.map(function(p, pi) {
+                                            return '<button type="button" class="btnApplyMiPreset" data-preset="' + ci + ',' + pi + '"' +
+                                                ' style="border:1.5px solid #000; border-radius:14px; padding:4px 12px; font-size:0.82em; cursor:pointer; background:transparent; color:var(--theme-text-primary);">' + p.name + '</button>';
+                                        }).join('') + '</div></div>';
+                                }).join('')}
+                            </div>
+                            <button type="button" is="emby-button" class="btnMySavedFilters raised btn-neutral" style="width:100%; margin-bottom:6px; background:transparent; border:1px solid var(--line-color); color:var(--theme-text-secondary); display:flex; align-items:center; justify-content:space-between;"><span><i class="md-icon" style="margin-right:5px;">bookmarks</i>My saved filters</span><i class="md-icon mi-expand-icon" style="transition:transform 0.2s; font-size:1.2em;">expand_more</i></button>
+                            <div class="mi-saved-panel" style="display:none; border:1px solid var(--line-color); border-radius:6px; padding:10px 12px; margin-bottom:8px; background:rgba(128,128,128,0.06);">
+                                <div style="font-size:0.8em; color:var(--theme-text-secondary); margin-bottom:10px;">Select a saved filter to replace the current filters:</div>
+                                <div class="mi-saved-panel-content">${getMySavedFiltersPanelHtml()}</div>
+                                <div style="border-top:1px solid var(--line-color); margin:12px 0 10px;"></div>
+                                <div style="font-size:0.8em; color:var(--theme-text-secondary); margin-bottom:6px;">Save current filter as:</div>
+                                <div class="mi-saveas-bar" style="display:flex; gap:6px; align-items:flex-start;">
+                                    <input type="text" class="txtSaveFilterName emby-input" placeholder="Filter name..." style="flex:1; padding:4px 8px; font-size:0.85em;" />
+                                    <button type="button" is="emby-button" class="btnConfirmSaveFilter raised" style="background:var(--button-background); color:var(--button-foreground); flex-shrink:0;">Save</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1165,8 +1260,50 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             }
 
             if (e.target.closest('.btnPremadeFilters')) {
-                var panel = e.target.closest('.source-mediainfo-container').querySelector('.mi-preset-panel');
-                panel.style.display = panel.style.display === 'none' ? '' : 'none';
+                var btn = e.target.closest('.btnPremadeFilters');
+                var panel = btn.closest('.source-mediainfo-container').querySelector('.mi-preset-panel');
+                var open = panel.style.display === 'none';
+                panel.style.display = open ? '' : 'none';
+                var icon = btn.querySelector('.mi-expand-icon');
+                if (icon) icon.style.transform = open ? 'rotate(180deg)' : '';
+                return;
+            }
+            if (e.target.closest('.btnMySavedFilters')) {
+                var btn = e.target.closest('.btnMySavedFilters');
+                var savedPanel = btn.closest('.source-mediainfo-container').querySelector('.mi-saved-panel');
+                var open = savedPanel.style.display === 'none';
+                savedPanel.style.display = open ? '' : 'none';
+                var icon = btn.querySelector('.mi-expand-icon');
+                if (icon) icon.style.transform = open ? 'rotate(180deg)' : '';
+                return;
+            }
+            if (e.target.closest('.btnConfirmSaveFilter')) {
+                var miContainer = e.target.closest('.source-mediainfo-container');
+                var nameInput = miContainer.querySelector('.txtSaveFilterName');
+                var name = nameInput.value.trim();
+                if (!name) { nameInput.focus(); return; }
+                var filters = readMiFiltersFromContainer(miContainer);
+                if (filters.length === 0) { nameInput.focus(); return; }
+                savedFilters.push({ Name: name, Filters: filters });
+                nameInput.value = '';
+                refreshMySavedFiltersPanels();
+                saveSavedFiltersNow();
+                return;
+            }
+            if (e.target.closest('.btnApplyMySavedFilter')) {
+                var idx = parseInt(e.target.closest('.btnApplyMySavedFilter').dataset.index, 10);
+                var sf = savedFilters[idx];
+                var savedList = e.target.closest('.source-mediainfo-container').querySelector('.mediainfo-filter-list');
+                savedList.innerHTML = sf.Filters.map(function(f, i) { return getMediaInfoFilterGroupHtml(f, i, i === 0); }).join('');
+                e.target.closest('.mi-saved-panel').style.display = 'none';
+                setTimeout(checkFormState, 0);
+                return;
+            }
+            if (e.target.closest('.btnDeleteMySavedFilter')) {
+                var idx = parseInt(e.target.closest('.btnDeleteMySavedFilter').dataset.index, 10);
+                savedFilters.splice(idx, 1);
+                refreshMySavedFiltersPanels();
+                saveSavedFiltersNow();
                 return;
             }
             if (e.target.closest('.btnApplyMiPreset')) {
@@ -1741,6 +1878,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             ExtendedConsoleOutput: view.querySelector('#chkExtendedConsoleOutput').checked,
             DryRunMode: view.querySelector('#chkDryRunMode').checked,
             Tags: flatTags,
+            SavedFilters: savedFilters,
             HomeSyncEnabled: hscEnabled ? hscEnabled.checked : (lastHscConfig.HomeSyncEnabled || false),
             HomeSyncSourceUserId: hscSource ? (hscSource.value || '') : (lastHscConfig.HomeSyncSourceUserId || ''),
             HomeSyncTargetUserIds: hscEnabled
@@ -2432,6 +2570,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                         HomeSyncSourceUserId:  config.HomeSyncSourceUserId  || '',
                         HomeSyncTargetUserIds: config.HomeSyncTargetUserIds || []
                     };
+                    savedFilters = config.SavedFilters || [];
 
                     var container = view.querySelector('#tagListContainer'); container.innerHTML = '';
                     view.querySelector('#txtTraktClientId').value = config.TraktClientId || '';
