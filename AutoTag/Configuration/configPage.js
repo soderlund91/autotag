@@ -1008,6 +1008,18 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             });
     }
 
+    function getSourceBadgeHtml(st) {
+        var map = {
+            'External':        { icon: 'language',      title: 'External List' },
+            'LocalCollection': { icon: 'folder_special', title: 'Local Collection' },
+            'LocalPlaylist':   { icon: 'playlist_play',  title: 'Local Playlist' },
+            'MediaInfo':       { icon: 'tune',           title: 'Smart Playlist' }
+        };
+        var e = map[st];
+        if (!e) return '';
+        return `<span class="tag-indicator source" title="${e.title}"><i class="md-icon" style="font-size:1.1em;">${e.icon}</i></span>`;
+    }
+
     function renderTagGroup(tagConfig, container, prepend, index, isNew, afterRef) {
         var isChecked = tagConfig.Active !== false ? 'checked' : '';
         var tagName = tagConfig.Tag || '';
@@ -1049,18 +1061,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
 
         var activeText = tagConfig.Active !== false ? "Active" : "Disabled";
         var activeColor = tagConfig.Active !== false ? "#52B54B" : "var(--theme-text-secondary)";
-
-        function getSourceBadgeHtml(st) {
-            var map = {
-                'External':        { icon: 'language',      title: 'External List' },
-                'LocalCollection': { icon: 'folder_special', title: 'Local Collection' },
-                'LocalPlaylist':   { icon: 'playlist_play',  title: 'Local Playlist' },
-                'MediaInfo':       { icon: 'tune',           title: 'Smart Playlist' }
-            };
-            var e = map[st];
-            if (!e) return '';
-            return `<span class="tag-indicator source" title="${e.title}"><i class="md-icon" style="font-size:1.1em;">${e.icon}</i></span>`;
-        }
 
         var sourceBadgeHtml = getSourceBadgeHtml(sourceType);
         var indicatorsHtml = '';
@@ -1405,33 +1405,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 var currentDay = Math.min(parseInt(daySelect.value, 10), maxDay);
                 daySelect.innerHTML = getDayOptions(currentDay, maxDay);
             }
-            if (e.target.classList.contains('chkEnableTag')) {
-                row.querySelector('.tag-settings').style.display = e.target.checked ? 'block' : 'none';
-                updateBadges(row);
-            }
-            if (e.target.classList.contains('chkEnableCollection')) {
-                var settingsDiv = row.querySelector('.collection-settings');
-                settingsDiv.style.display = e.target.checked ? 'block' : 'none';
-                updateBadges(row);
-            }
-            if (e.target.classList.contains('chkOverrideWhenActive')) {
-                updateBadges(row);
-            }
-
-            if (e.target.classList.contains('chkEnableHomeSection')) {
-                if (e.target.checked) {
-                    var hasTag = !!(row.querySelector('.chkEnableTag') || {}).checked;
-                    var hasColl = !!(row.querySelector('.chkEnableCollection') || {}).checked;
-                    if (!hasTag && !hasColl) {
-                        e.target.checked = false;
-                        window.Dashboard.alert('Enable either "Tag" or "Collection" for this entry before adding it as a home screen section.');
-                        return;
-                    }
-                }
-                var hseDetails = row.querySelector('.hse-details');
-                if (hseDetails) hseDetails.style.display = e.target.checked ? 'block' : 'none';
-                updateBadges(row);
-            }
         });
 
         var header = row.querySelector('.tag-header'), body = row.querySelector('.tag-body'), icon = row.querySelector('.expand-icon');
@@ -1449,6 +1422,35 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
 
             if (this.checked) row.classList.remove('inactive');
             else row.classList.add('inactive');
+        });
+
+        row.querySelector('.chkEnableTag').addEventListener('change', function () {
+            row.querySelector('.tag-settings').style.display = this.checked ? 'block' : 'none';
+            updateBadges(row);
+        });
+
+        row.querySelector('.chkEnableCollection').addEventListener('change', function () {
+            row.querySelector('.collection-settings').style.display = this.checked ? 'block' : 'none';
+            updateBadges(row);
+        });
+
+        row.querySelector('.chkOverrideWhenActive').addEventListener('change', function () {
+            updateBadges(row);
+        });
+
+        row.querySelector('.chkEnableHomeSection').addEventListener('change', function () {
+            if (this.checked) {
+                var hasTag = !!(row.querySelector('.chkEnableTag') || {}).checked;
+                var hasColl = !!(row.querySelector('.chkEnableCollection') || {}).checked;
+                if (!hasTag && !hasColl) {
+                    this.checked = false;
+                    window.Dashboard.alert('Enable either "Tag" or "Collection" for this entry before adding it as a home screen section.');
+                    return;
+                }
+            }
+            var hseDetails = row.querySelector('.hse-details');
+            if (hseDetails) hseDetails.style.display = this.checked ? 'block' : 'none';
+            updateBadges(row);
         });
 
         row.querySelector('.btnAddUrl').addEventListener('click', () => {

@@ -81,7 +81,7 @@ namespace HomeScreenCompanion
 
                 var startTime = DateTime.Now;
                 LogSummary($"Home Screen Companion v{Plugin.Instance.Version}  ·  {startTime:yyyy-MM-dd HH:mm}");
-                if (dryRun) LogSummary("! DRY RUN MODE — no changes will be saved");
+                if (dryRun) LogSummary("  ! DRY RUN — no changes will be written");
 
                 var allItems = _libraryManager.GetItemList(new InternalItemsQuery
                 {
@@ -104,10 +104,9 @@ namespace HomeScreenCompanion
 
                 int movieCount = allItems.Count(i => i.GetType().Name.Contains("Movie"));
                 int seriesCount = allItems.Count(i => i.GetType().Name.Contains("Series"));
-                LogSummary($"Library: {movieCount} movies, {seriesCount} series");
-
                 int activeRuleCount = config.Tags.Count(t => t.Active && !string.IsNullOrWhiteSpace(t.Tag));
-                LogSummary($"Processing {activeRuleCount} active rule(s)...");
+                LogSummary($"  Library: {movieCount} movies, {seriesCount} series  ·  {activeRuleCount} active rule(s)");
+                LogSummary("  --------------------------------------------------");
 
                 var fetcher = new ListFetcher(_httpClient, _jsonSerializer);
                 var desiredTagsMap = new Dictionary<Guid, HashSet<string>>();
@@ -205,6 +204,11 @@ namespace HomeScreenCompanion
                     string tagName = tagConfig.Tag.Trim();
                     string displayName = !string.IsNullOrWhiteSpace(tagConfig.Name) ? $"{tagConfig.Name} [{tagName}]" : tagName;
                     string srcLabel = string.IsNullOrEmpty(tagConfig.SourceType) ? "External" : tagConfig.SourceType;
+                    var ruleFeatures = new List<string>();
+                    if (tagConfig.EnableTag && !tagConfig.OnlyCollection) ruleFeatures.Add("Tag");
+                    if (tagConfig.EnableCollection) ruleFeatures.Add("Collection");
+                    if (tagConfig.EnableHomeSection) ruleFeatures.Add("HS");
+                    string featureStr = ruleFeatures.Count > 0 ? $"  ({string.Join(", ", ruleFeatures)})" : "";
                     managedTags.Add(tagName);
 
                     if (!IsScheduleActive(tagConfig.ActiveIntervals))
@@ -268,7 +272,7 @@ namespace HomeScreenCompanion
                                     }
                                 }
                             }
-                            if (debug) LogDebug($"{displayName}: {items.Count} fetched from API, {matchedLocalItems.Count} in library");
+                            if (debug) LogDebug($"  [External] {displayName}: {items.Count} fetched from API, {matchedLocalItems.Count} in library");
                         }
                         else if (tagConfig.SourceType == "LocalCollection" || tagConfig.SourceType == "LocalPlaylist")
                         {
@@ -289,7 +293,7 @@ namespace HomeScreenCompanion
                                 if (localSourceFolder != null)
                                 {
                                     var children = new List<BaseItem>();
-                                    if (debug) LogDebug($"{displayName}: found '{localSourceFolder.Name}' ({localSourceFolder.GetType().Name})");
+                                    if (debug) LogDebug($"  [Local] {displayName}: found '{localSourceFolder.Name}' ({localSourceFolder.GetType().Name})");
 
                                     if (tagConfig.SourceType == "LocalCollection")
                                     {
@@ -313,7 +317,7 @@ namespace HomeScreenCompanion
                                     }
                                     else if (debug)
                                     {
-                                        LogDebug($"{displayName}: {children.Count} items in '{tagConfig.LocalSourceId}'");
+                                        LogDebug($"  [Local] {displayName}: {children.Count} items in '{tagConfig.LocalSourceId}'");
                                     }
 
                                     foreach (var child in children)
@@ -379,7 +383,19 @@ namespace HomeScreenCompanion
                                     if (effectiveLimit < 10000 && matchedLocalItems.Count >= effectiveLimit) break;
                                 }
                             }
-                            if (debug) LogDebug($"{displayName}: {allItems.Count} items scanned, {matchedLocalItems.Count} matched [MediaInfo]");
+                            if (debug)
+                            {
+                                LogDebug($"  [MediaInfo] {displayName}: {allItems.Count} scanned, {matchedLocalItems.Count} matched");
+                                int _miShown = 0;
+                                foreach (var _mi in matchedLocalItems)
+                                {
+                                    if (_miShown >= 50) { LogDebug($"  [MediaInfo]   ... and {matchedLocalItems.Count - _miShown} more"); break; }
+                                    var _miYr = _mi.ProductionYear.HasValue ? $" ({_mi.ProductionYear})" : "";
+                                    var _miTp = _mi.GetType().Name.Contains("Series") ? "Series" : "Movie";
+                                    LogDebug($"  [MediaInfo]   {_mi.Name}{_miYr} [{_miTp}]");
+                                    _miShown++;
+                                }
+                            }
                         }
 
                         if (matchedLocalItems.Count > 0)
@@ -407,11 +423,11 @@ namespace HomeScreenCompanion
                                     desiredCollectionsMap[cName].Add(localItem.InternalId);
                                 }
                             }
-                            LogSummary($"  + {displayName}  ·  {matchCount} matched  [{srcLabel}]");
+                            LogSummary($"  + {displayName}  ·  {matchCount} matched  [{srcLabel}]{featureStr}");
                         }
                         else
                         {
-                            LogSummary($"  - {displayName}  ·  0 matched  [{srcLabel}]");
+                            LogSummary($"  - {displayName}  ·  0 matched  [{srcLabel}]{featureStr}");
                         }
                     }
                     catch (Exception ex)
@@ -431,6 +447,7 @@ namespace HomeScreenCompanion
                     SaveFileHistory("homescreencompanion_history.txt", managedTags.ToList());
                 }
 
+                LogSummary("  --------------------------------------------------");
                 int tagsAdded = 0, tagsRemoved = 0, itemsChanged = 0, updateCount = 0;
                 foreach (var item in allItems)
                 {
@@ -445,8 +462,10 @@ namespace HomeScreenCompanion
                     itemsChanged++;
                     if (debug)
                     {
-                        foreach (var t in toAdd) LogDebug($"  +tag '{t}' → '{item.Name}'");
-                        foreach (var t in toRemove) LogDebug($"  -tag '{t}' → '{item.Name}'");
+                        var _tagYr = item.ProductionYear.HasValue ? $" ({item.ProductionYear})" : "";
+                        var _tagTp = item.GetType().Name.Contains("Series") ? "Series" : "Movie";
+                        foreach (var t in toAdd) LogDebug($"  [Tags] + {item.Name}{_tagYr} [{_tagTp}]  →  tag '{t}'");
+                        foreach (var t in toRemove) LogDebug($"  [Tags] - {item.Name}{_tagYr} [{_tagTp}]  →  tag '{t}'");
                     }
                     if (!dryRun)
                     {
@@ -500,7 +519,14 @@ namespace HomeScreenCompanion
                         if ((toAdd.Count > 0 || toRemove.Count > 0) && !dryRun)
                         {
                             collUpdated++;
-                            if (debug) LogDebug($"Collection '{cName}': +{toAdd.Count} added, -{toRemove.Count} removed");
+                            if (debug)
+                            {
+                                LogDebug($"  [Coll] '{cName}':  +{toAdd.Count} added,  -{toRemove.Count} removed");
+                                var _collMap = allItems.ToDictionary(i => i.InternalId, i => i.Name + (i.ProductionYear.HasValue ? $" ({i.ProductionYear})" : ""));
+                                string CollLabel(long id) => _collMap.TryGetValue(id, out var _cn) ? _cn : id.ToString();
+                                foreach (var id in toAdd) LogDebug($"  [Coll]   + {CollLabel(id)}");
+                                foreach (var id in toRemove) LogDebug($"  [Coll]   - {CollLabel(id)}");
+                            }
                         }
                         if (!dryRun && (collectionDescriptions.ContainsKey(cName) || collectionPosters.ContainsKey(cName)))
                             ApplyCollectionMeta(existingColl, cName, collectionDescriptions, collectionPosters, debug);
@@ -533,7 +559,7 @@ namespace HomeScreenCompanion
 
                 if (!dryRun) SaveFileHistory("homescreencompanion_collections.txt", activeCollections.ToList());
 
-                if (!dryRun) ManageHomeSections(config, cancellationToken);
+                if (!dryRun) ManageHomeSections(config, cancellationToken, debug);
 
                 progress.Report(100);
                 var elapsed = DateTime.Now - startTime;
@@ -542,7 +568,8 @@ namespace HomeScreenCompanion
                     : $"{(int)elapsed.TotalSeconds}s";
                 string finalStatus = dryRun ? "Dry Run" : "Success";
                 LastRunStatus = $"{finalStatus} ({DateTime.Now:HH:mm})";
-                LogSummary($"Done in {elapsedStr}  ·  {finalStatus}");
+                LogSummary("  --------------------------------------------------");
+                LogSummary($"  Done in {elapsedStr}  ·  {finalStatus}");
             }
             catch (Exception ex)
             {
@@ -552,7 +579,7 @@ namespace HomeScreenCompanion
             finally { IsRunning = false; }
         }
 
-        private void ManageHomeSections(PluginConfiguration config, CancellationToken cancellationToken)
+        private void ManageHomeSections(PluginConfiguration config, CancellationToken cancellationToken, bool debug = false)
         {
             bool configChanged = false;
             var processedHsKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -568,22 +595,29 @@ namespace HomeScreenCompanion
                     .Select(c => char.IsLetterOrDigit(c) || c == '-' || c == '_' ? c : '_'));
                 var sectionMarker = "hsc__" + safeTag;
 
+                string _hsTagName = (tc.Tag ?? "").Trim();
+                string _hsDisplayName = !string.IsNullOrWhiteSpace(tc.Name) ? $"{tc.Name} [{_hsTagName}]" : _hsTagName;
+
                 if (!tc.EnableHomeSection || !isActive)
                 {
                     if (tc.HomeSectionTracked.Count > 0)
                     {
+                        int _removedHs = 0;
                         foreach (var tracking in tc.HomeSectionTracked)
                         {
                             try
                             {
                                 var uid = _userManager.GetInternalId(tracking.UserId);
                                 DeleteSectionForUser(uid, tracking.SectionId, sectionMarker, tc.HomeSectionSettings, cancellationToken);
+                                _removedHs++;
                             }
                             catch (Exception ex)
                             {
-                                LogSummary($"  [HomeSection] Failed to remove section for user {tracking.UserId}: {ex.Message}", "Warn");
+                                LogSummary($"  ! {_hsDisplayName}  ·  failed to remove home section: {ex.Message}", "Warn");
                             }
                         }
+                        if (_removedHs > 0)
+                            LogSummary($"  ~ {_hsDisplayName}  ·  home section removed  ({_removedHs} user{(_removedHs == 1 ? "" : "s")})");
                         tc.HomeSectionTracked.Clear();
                         configChanged = true;
                     }
@@ -626,7 +660,7 @@ namespace HomeScreenCompanion
                             if (coll != null)
                                 resolvedLibraryId = coll.InternalId.ToString();
                             else
-                                LogSummary($"  [HomeSection] Collection '{tc.CollectionName}' not found for entry '{tc.Name}'.", "Warn");
+                                LogSummary($"  ! {_hsDisplayName}  ·  collection '{tc.CollectionName}' not found", "Warn");
                         }
                     }
                     else if (!string.IsNullOrEmpty(tc.HomeSectionLibraryId))
@@ -636,7 +670,7 @@ namespace HomeScreenCompanion
 
                     if (string.IsNullOrEmpty(resolvedLibraryId))
                     {
-                        LogSummary($"  [HomeSection] Entry '{tc.Name}' is boxset type but no collection ParentId resolved. Skipping.", "Warn");
+                        LogSummary($"  ! {_hsDisplayName}  ·  no collection found — home section skipped", "Warn");
                         continue;
                     }
                 }
@@ -652,7 +686,7 @@ namespace HomeScreenCompanion
                     if (tagItem != null)
                         settingsDict["_queryTagId"] = tagItem.InternalId.ToString();
                     else
-                        LogSummary($"  [HomeSection] Tag '{tc.Tag}' not found in Emby library — section will have no tag filter.", "Warn");
+                        LogSummary($"  ! {_hsDisplayName}  ·  tag not found in library, section may be empty", "Warn");
                 }
 
                 var removedUsers = tc.HomeSectionTracked.Where(t => !tc.HomeSectionUserIds.Contains(t.UserId)).ToList();
@@ -668,6 +702,7 @@ namespace HomeScreenCompanion
                     configChanged = true;
                 }
 
+                int _hsSynced = 0;
                 foreach (var userId in tc.HomeSectionUserIds)
                 {
                     try
@@ -700,13 +735,25 @@ namespace HomeScreenCompanion
                             tc.HomeSectionTracked.Add(new HomeSectionTracking { UserId = userId, SectionId = trackId });
 
                         configChanged = true;
-                        LogSummary($"  [HomeSection] Added section for user {userId} (entry: '{tc.Name}', tracking: '{trackId}')");
+                        _hsSynced++;
+                        if (debug)
+                        {
+                            string _hsUserName = Guid.TryParse(userId, out var _hsGuid)
+                                ? (_userManager.GetUserById(_hsGuid)?.Name ?? userId)
+                                : userId;
+                            LogDebug($"  [HS] + {_hsDisplayName}  →  {_hsUserName}");
+                        }
                     }
                     catch (Exception ex)
                     {
-                        LogSummary($"  [HomeSection] Failed for user {userId} (entry: '{tc.Name}'): {ex.Message}", "Warn");
+                        string _hsUserName2 = Guid.TryParse(userId, out var _hsGuid2)
+                            ? (_userManager.GetUserById(_hsGuid2)?.Name ?? userId)
+                            : userId;
+                        LogSummary($"  ! {_hsDisplayName}  ·  home section failed for {_hsUserName2}: {ex.Message}", "Warn");
                     }
                 }
+                if (_hsSynced > 0)
+                    LogSummary($"  + {_hsDisplayName}  ·  home section synced  ({_hsSynced} user{(_hsSynced == 1 ? "" : "s")})");
             }
 
             if (configChanged)
