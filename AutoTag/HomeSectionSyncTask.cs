@@ -142,6 +142,53 @@ namespace HomeScreenCompanion
                     progress.Report(20 + (int)(80.0 * (i + 1) / targetCount));
                 }
 
+                if (config.HomeSyncLibraryOrder)
+                {
+                    LogSummary("Syncing library order...");
+                    try
+                    {
+                        var sourceUser = _userManager.GetUserById(config.HomeSyncSourceUserId);
+                        if (sourceUser != null)
+                        {
+                            var sourceConf = _userManager.GetUserConfiguration(sourceUser);
+                            if (sourceConf?.OrderedViews != null && sourceConf.OrderedViews.Length > 0)
+                            {
+                                if (debug)
+                                    LogDebug($"  Source library order: [{string.Join(", ", sourceConf.OrderedViews)}]");
+                                foreach (var targetIdStr in config.HomeSyncTargetUserIds)
+                                {
+                                    try
+                                    {
+                                        var targetUser = _userManager.GetUserById(targetIdStr);
+                                        if (targetUser == null) continue;
+                                        var targetConf = _userManager.GetUserConfiguration(targetUser);
+                                        if (targetConf == null) continue;
+                                        targetConf.OrderedViews = sourceConf.OrderedViews;
+                                        _userManager.UpdateConfiguration(_userManager.GetInternalId(targetIdStr), targetConf);
+                                        LogSummary($"  Library order synced to user {targetIdStr}.");
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        LogSummary($"  Failed to sync library order to user {targetIdStr}: {ex.Message}", "Warn");
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                LogSummary("  Source user has no custom library order. Skipping.", "Warn");
+                            }
+                        }
+                        else
+                        {
+                            LogSummary("  Could not load source user for library order sync.", "Warn");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogSummary($"  Library order sync failed: {ex.Message}", "Error");
+                    }
+                }
+
                 LastSectionsCopied = totalCopied;
                 LastSyncTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
                 LastSyncResult = $"OK — {totalCopied} section(s) copied to {targetCount} user(s).";

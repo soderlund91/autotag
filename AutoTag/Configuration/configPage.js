@@ -105,6 +105,15 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             border: 1px solid rgba(255,193,7,0.35);
         }
 
+        .tag-indicator.source {
+            color: #78909c;
+            background: rgba(120,144,156,0.15);
+            border: 1px solid rgba(120,144,156,0.35);
+            padding: 2px 5px;
+            margin-left: 0;
+            margin-right: 8px;
+        }
+
         .badge-container {
             display: flex;
             align-items: center;
@@ -287,6 +296,88 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         #txtSearchTags:focus {
             border-color: var(--theme-primary-color) !important;
             background: rgba(128,128,128,0.1) !important;
+        }
+
+        .filter-dropdown-wrapper {
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .filter-dropdown-btn {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 10px;
+            background: rgba(128,128,128,0.08);
+            border: 1px solid var(--line-color);
+            border-radius: 4px;
+            font-size: 0.9em;
+            cursor: pointer;
+            color: inherit;
+            white-space: nowrap;
+            user-select: none;
+        }
+
+        .filter-dropdown-btn:hover {
+            background: rgba(128,128,128,0.15);
+        }
+
+        .filter-dropdown-btn.active {
+            border-color: #52B54B;
+            color: #52B54B;
+        }
+
+        .filter-dropdown-panel {
+            display: none;
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            z-index: 9999;
+            background: var(--theme-background-level2, #1e1e1e);
+            border: 1px solid var(--line-color);
+            border-radius: 6px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            padding: 10px 14px;
+            min-width: 200px;
+        }
+
+        .filter-dropdown-panel.open {
+            display: block;
+        }
+
+        .filter-dropdown-section {
+            margin-bottom: 10px;
+        }
+
+        .filter-dropdown-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .filter-dropdown-divider {
+            height: 1px;
+            background: var(--line-color);
+            margin: 8px 0;
+        }
+
+        .filter-dropdown-label {
+            font-size: 0.75em;
+            opacity: 0.5;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+        }
+
+        .filter-chk-row {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 3px 0;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+
+        .filter-chk-row input[type=checkbox] {
+            cursor: pointer;
         }
 
         .btn-row-remove {
@@ -959,6 +1050,19 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         var activeText = tagConfig.Active !== false ? "Active" : "Disabled";
         var activeColor = tagConfig.Active !== false ? "#52B54B" : "var(--theme-text-secondary)";
 
+        function getSourceBadgeHtml(st) {
+            var map = {
+                'External':        { icon: 'language',      title: 'External List' },
+                'LocalCollection': { icon: 'folder_special', title: 'Local Collection' },
+                'LocalPlaylist':   { icon: 'playlist_play',  title: 'Local Playlist' },
+                'MediaInfo':       { icon: 'tune',           title: 'Smart Playlist' }
+            };
+            var e = map[st];
+            if (!e) return '';
+            return `<span class="tag-indicator source" title="${e.title}"><i class="md-icon" style="font-size:1.1em;">${e.icon}</i></span>`;
+        }
+
+        var sourceBadgeHtml = getSourceBadgeHtml(sourceType);
         var indicatorsHtml = '';
         if (intervals.length > 0) {
             var schedPriorityClass = tagConfig.OverrideWhenActive ? ' priority-active' : '';
@@ -996,6 +1100,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                         </label>
                     </div>
                     <div class="tag-info" style="display:flex; align-items:center;">
+                        <span class="source-badge">${sourceBadgeHtml}</span>
                         <span class="tag-title" style="font-weight:bold; font-size:1.1em;">${labelName || tagName || 'New'}</span>
                         <span class="badge-container" style="display:flex; align-items:center;">${indicatorsHtml}</span>
                     </div>
@@ -1089,7 +1194,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                         <div class="fieldDescription">Automatically tag matched items in Emby.</div>
                     </div>
                     <div class="tag-settings" style="margin-left: 20px; padding-left: 15px; border-left: 2px solid var(--line-color); margin-top: 10px; display: ${tagConfig.EnableTag !== false ? 'block' : 'none'};">
-                        <div class="inputContainer" style="flex-grow:1;"><input is="emby-input" class="txtTagName" type="text" label="Tag Name" value="${tagName}" /></div>
+                        <div class="inputContainer" style="flex-grow:1;"><input is="emby-input" class="txtTagName" type="text" label="Tag Name" value="${tagName}" placeholder="${labelName}" /></div>
                         <p style="margin:5px 0 0 0; font-size:0.9em; opacity:0.7;">The tag that will be applied to matched items in Emby.</p>
                     </div>
             </div>
@@ -1118,8 +1223,8 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     
                     <div class="collection-settings" style="margin-left: 20px; padding-left: 15px; border-left: 2px solid var(--line-color); margin-top: 10px; display: ${tagConfig.EnableCollection ? 'block' : 'none'};">
                         <div class="inputContainer">
-                            <input is="emby-input" type="text" class="txtCollectionName" label="Collection Name" value="${collName}" placeholder="${tagName}" />
-                            <div class="fieldDescription">Leave empty to use Tag Name.</div>
+                            <input is="emby-input" type="text" class="txtCollectionName" label="Collection Name" value="${collName}" placeholder="${labelName}" />
+                            <div class="fieldDescription">Leave empty to use Display Name.</div>
                         </div>
 
 
@@ -1223,6 +1328,9 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             }
             var hasOverride = hasSchedule && !!(overrideChk || {}).checked;
 
+            var sourceBadge = row.querySelector('.source-badge');
+            if (sourceBadge) sourceBadge.innerHTML = getSourceBadgeHtml(row.querySelector('.selSourceType').value);
+
             var html = '';
             if (hasSchedule) {
                 var schedPriorityClass = hasOverride ? ' priority-active' : '';
@@ -1274,6 +1382,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     row.querySelector('.local-list-container').innerHTML = getLocalRowHtml(type, "", 0);
                     row.querySelector('.local-type-label').textContent = type === 'LocalPlaylist' ? "Select Playlists" : "Select Collections";
                 }
+                updateBadges(row);
             }
             
             if (e.target.classList.contains('selMiProperty')) {
@@ -1517,6 +1626,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             var lbl = row.querySelector('.txtEntryLabel').value;
             var tag = row.querySelector('.txtTagName').value;
             row.querySelector('.tag-title').textContent = lbl || tag || 'New';
+            row.querySelector('.txtTagName').setAttribute('placeholder', lbl);
+            row.querySelector('.txtCollectionName').setAttribute('placeholder', lbl);
+            var hseCustomTitle = row.querySelector('[data-field="CustomName"]');
+            if (hseCustomTitle) hseCustomTitle.setAttribute('placeholder', lbl);
             updateBadges(row);
         }
         row.querySelector('.txtEntryLabel').addEventListener('input', updateTagTitle);
@@ -1891,7 +2004,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 tab.querySelector('.hse-user-list-inner').innerHTML = userHtml || '<em style="opacity:0.5">No users found</em>';
 
                 // Structured section settings form
-                var defaultTagName = row.querySelector('.txtTagName').value || '';
+                var defaultTagName = row.querySelector('.txtEntryLabel').value || row.querySelector('.txtTagName').value || '';
                 tab.querySelector('.hse-fields-inner').innerHTML = buildHomeSectionFormHtml(savedSettings, defaultSectionType, defaultTagName);
                 wireHomeSectionTypeChange(tab);
 
@@ -2032,8 +2145,9 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             }
         });
 
-        var hscEnabled = view.querySelector('#chkHscEnabled');
-        var hscSource  = view.querySelector('#selHscSourceUser');
+        var hscEnabled      = view.querySelector('#chkHscEnabled');
+        var hscSource       = view.querySelector('#selHscSourceUser');
+        var hscLibraryOrder = view.querySelector('#chkHscLibraryOrder');
 
         return {
             TraktClientId: view.querySelector('#txtTraktClientId').value,
@@ -2043,6 +2157,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             Tags: flatTags,
             SavedFilters: savedFilters,
             HomeSyncEnabled: hscEnabled ? hscEnabled.checked : (lastHscConfig.HomeSyncEnabled || false),
+            HomeSyncLibraryOrder: hscLibraryOrder ? hscLibraryOrder.checked : (lastHscConfig.HomeSyncLibraryOrder || false),
             HomeSyncSourceUserId: hscSource ? (hscSource.value || '') : (lastHscConfig.HomeSyncSourceUserId || ''),
             HomeSyncTargetUserIds: hscEnabled
                 ? Array.from(view.querySelectorAll('.hsc-target-chk:checked')).map(function(c) { return c.value; })
@@ -2096,27 +2211,60 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         var container = view.querySelector('#tagListContainer');
         var rows = container.querySelectorAll('.tag-row');
 
-        var showScheduleOnly = view.querySelector('#chkFilterSchedule').checked;
-        var showCollectionOnly = view.querySelector('#chkFilterCollection').checked;
         var searchTerm = (view.querySelector('#txtSearchTags').value || "").toLowerCase();
 
-        rows.forEach(row => {
-            var tagName = (row.querySelector('.txtTagName').value || "").toLowerCase();
-            var entryLbl = (row.querySelector('.txtEntryLabel').value || "").toLowerCase();
-            var hasSchedule = row.querySelectorAll('.date-row').length > 0;
-            var hasCollection = row.querySelector('.chkEnableCollection').checked;
+        var fTag        = view.querySelector('#chkFilterTag')?.checked;
+        var fColl       = view.querySelector('#chkFilterCollection')?.checked;
+        var fSched      = view.querySelector('#chkFilterSchedule')?.checked;
+        var fHome       = view.querySelector('#chkFilterHomeScreen')?.checked;
+        var fSrcExt     = view.querySelector('#chkFilterSrcExternal')?.checked;
+        var fSrcMI      = view.querySelector('#chkFilterSrcMediaInfo')?.checked;
+        var fSrcColl    = view.querySelector('#chkFilterSrcCollection')?.checked;
+        var fSrcPlay    = view.querySelector('#chkFilterSrcPlaylist')?.checked;
+        var fActive     = view.querySelector('#chkFilterActive')?.checked;
+        var fInactive   = view.querySelector('#chkFilterInactive')?.checked;
 
-            var matchesSearch = tagName.includes(searchTerm) || entryLbl.includes(searchTerm);
-            var matchesFilter = true;
-            if (showScheduleOnly && showCollectionOnly) {
-                matchesFilter = (hasSchedule || hasCollection);
-            } else if (showScheduleOnly) {
-                matchesFilter = hasSchedule;
-            } else if (showCollectionOnly) {
-                matchesFilter = hasCollection;
+        var anyFeature  = fTag || fColl || fSched || fHome;
+        var anySrc      = fSrcExt || fSrcMI || fSrcColl || fSrcPlay;
+        var anyStatus   = fActive || fInactive;
+
+        // Update button appearance
+        var btn = view.querySelector('#btnFilterDropdown');
+        var lbl = view.querySelector('#filterDropdownLabel');
+        if (btn && lbl) {
+            var activeCount = [fTag, fColl, fSched, fHome, fSrcExt, fSrcMI, fSrcColl, fSrcPlay, fActive, fInactive].filter(Boolean).length;
+            lbl.textContent = activeCount > 0 ? 'Filter (' + activeCount + ')' : 'Filter';
+            btn.classList.toggle('active', activeCount > 0);
+        }
+
+        rows.forEach(row => {
+            var tagName  = (row.querySelector('.txtTagName').value || "").toLowerCase();
+            var entryLbl = (row.querySelector('.txtEntryLabel').value || "").toLowerCase();
+            var matchesSearch = !searchTerm || tagName.includes(searchTerm) || entryLbl.includes(searchTerm);
+
+            var matchesFeature = true;
+            if (anyFeature) {
+                var hasTag   = row.querySelector('.chkEnableTag')?.checked;
+                var hasColl  = row.querySelector('.chkEnableCollection')?.checked;
+                var hasSched = row.querySelectorAll('.date-row').length > 0;
+                var hasHome  = row.querySelector('.chkEnableHomeSection')?.checked;
+                matchesFeature = (fTag && hasTag) || (fColl && hasColl) || (fSched && hasSched) || (fHome && hasHome);
             }
 
-            row.style.display = (matchesSearch && matchesFilter) ? 'block' : 'none';
+            var matchesSrc = true;
+            if (anySrc) {
+                var src = row.querySelector('.selSourceType')?.value || '';
+                matchesSrc = (fSrcExt && src === 'External') || (fSrcMI && src === 'MediaInfo') ||
+                             (fSrcColl && src === 'LocalCollection') || (fSrcPlay && src === 'LocalPlaylist');
+            }
+
+            var matchesStatus = true;
+            if (anyStatus) {
+                var isActive = row.querySelector('.chkTagActive')?.checked;
+                matchesStatus = (fActive && isActive) || (fInactive && !isActive);
+            }
+
+            row.style.display = (matchesSearch && matchesFeature && matchesSrc && matchesStatus) ? 'block' : 'none';
         });
     }
 
@@ -2191,7 +2339,8 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 '</label></div>';
         }).join('');
 
-        var enabled   = config.HomeSyncEnabled ? ' checked' : '';
+        var enabled      = config.HomeSyncEnabled ? ' checked' : '';
+        var libOrderChk  = config.HomeSyncLibraryOrder ? ' checked' : '';
 
         container.innerHTML = [
             '<div class="hsc-card">',
@@ -2199,6 +2348,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             '<div class="checkboxContainer checkboxContainer-withDescription">',
             '<label><input is="emby-checkbox" type="checkbox" id="chkHscEnabled"' + enabled + ' /><span>Enable Home Screen sync</span></label>',
             '<div class="fieldDescription">When enabled, the plugin syncs all Home Sections from the target user and applies it to those selected. When disabled, the task always skips — even if triggered manually.</div>',
+            '</div>',
+            '<div class="checkboxContainer checkboxContainer-withDescription" style="margin-top:8px;">',
+            '<label><input is="emby-checkbox" type="checkbox" id="chkHscLibraryOrder"' + libOrderChk + ' /><span>Also copy library order</span></label>',
+            '<div class="fieldDescription">Also syncs the order of media libraries in the navigation sidebar.</div>',
             '</div>',
             '<div class="inputContainer" style="margin-top:16px;">',
             '<select is="emby-select" id="selHscSourceUser" label="Source User">',
@@ -2579,6 +2732,8 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             settingsTab.addEventListener('input',  changeHandler, { signal: _signal });
             settingsTab.addEventListener('change', changeHandler, { signal: _signal });
             form.addEventListener('click', (e) => {
+                var dayBtn = e.target.closest('.day-toggle');
+                if (dayBtn) dayBtn.classList.toggle('active');
                 if (e.target.closest('.btnRemoveUrl, .btnAddUrl, .btnRemoveLocal, .btnAddLocal, .btnRemoveDate, .btnAddDate, .btnRemoveFilterGroup, .btnAddMediaInfoFilter, .btnGroupOpChoice, .btnGroupInnerOpChoice, .btnAddMiRule, .btnRemoveMiRule, .btnRemoveGroup, .day-toggle, .btnRemovePoster, .btnApplyMiPreset')) {
                     changeHandler();
                 }
@@ -2659,7 +2814,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
 
                         <div style="width: 1px; height: 25px; background: var(--line-color); margin-right: 10px;"></div>
 
-                        <span class="control-label" style="opacity:0.7; margin-right: 20px; flex-shrink: 0;"> | Filters:</span>
+                        <span class="control-label" style="opacity:0.7; margin-right: 10px; flex-shrink: 0;"> | Filters:</span>
 
                         <div class="search-input-wrapper" style="width: 200px !important; margin-right: 10px; flex-shrink: 0;">
                             <i class="md-icon search-icon">search</i>
@@ -2667,15 +2822,30 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                             <i class="md-icon" id="btnClearSearch">close</i>
                         </div>
 
-                        <label class="checkboxContainer" style="display: flex !important; align-items: center !important; margin: 0 10px 0 0 !important; cursor: pointer !important; width: auto !important;">
-                            <input type="checkbox" id="chkFilterSchedule" is="emby-checkbox" />
-                            <span style="font-size: 0.9em; margin-left: 5px; white-space: nowrap;">Schedule</span>
-                        </label>
-
-                        <label class="checkboxContainer" style="display: flex !important; align-items: center !important; margin: 0 !important; cursor: pointer !important; width: auto !important;">
-                            <input type="checkbox" id="chkFilterCollection" is="emby-checkbox" />
-                            <span style="font-size: 0.9em; margin-left: 5px; white-space: nowrap;">Collection</span>
-                        </label>
+                        <div class="filter-dropdown-wrapper">
+                            <div class="filter-dropdown-btn" id="btnFilterDropdown">
+                                <i class="md-icon" style="font-size:1.1em;">filter_list</i>
+                                <span id="filterDropdownLabel">Filter</span>
+                                <i class="md-icon" style="font-size:0.9em; opacity:0.6;" id="filterDropdownCaret">expand_more</i>
+                            </div>
+                            <div class="filter-dropdown-panel" id="filterDropdownPanel">
+                                <div class="filter-dropdown-label">Features</div>
+                                <label class="filter-chk-row"><input type="checkbox" id="chkFilterTag" /><span>Tag</span></label>
+                                <label class="filter-chk-row"><input type="checkbox" id="chkFilterCollection" /><span>Collection</span></label>
+                                <label class="filter-chk-row"><input type="checkbox" id="chkFilterSchedule" /><span>Schedule</span></label>
+                                <label class="filter-chk-row"><input type="checkbox" id="chkFilterHomeScreen" /><span>Home Screen Section</span></label>
+                                <div class="filter-dropdown-divider"></div>
+                                <div class="filter-dropdown-label">Sources</div>
+                                <label class="filter-chk-row"><input type="checkbox" id="chkFilterSrcExternal" /><span>External</span></label>
+                                <label class="filter-chk-row"><input type="checkbox" id="chkFilterSrcMediaInfo" /><span>Local Media Information</span></label>
+                                <label class="filter-chk-row"><input type="checkbox" id="chkFilterSrcCollection" /><span>Local Collection</span></label>
+                                <label class="filter-chk-row"><input type="checkbox" id="chkFilterSrcPlaylist" /><span>Local Playlist</span></label>
+                                <div class="filter-dropdown-divider"></div>
+                                <div class="filter-dropdown-label">Status</div>
+                                <label class="filter-chk-row"><input type="checkbox" id="chkFilterActive" /><span style="display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:#52B54B;flex-shrink:0;"></span>Active</span></label>
+                                <label class="filter-chk-row"><input type="checkbox" id="chkFilterInactive" /><span style="display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:rgba(128,128,128,0.5);flex-shrink:0;"></span>Inactive</span></label>
+                            </div>
+                        </div>
 
                     </div>`;
 
@@ -2701,8 +2871,27 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                         sortRows(view.querySelector('#tagListContainer'), this.value);
                     });
 
-                    view.querySelector('#chkFilterSchedule').addEventListener('change', () => applyFilters(view));
-                    view.querySelector('#chkFilterCollection').addEventListener('change', () => applyFilters(view));
+                    ['#chkFilterTag','#chkFilterCollection','#chkFilterSchedule','#chkFilterHomeScreen',
+                     '#chkFilterSrcExternal','#chkFilterSrcMediaInfo','#chkFilterSrcCollection','#chkFilterSrcPlaylist',
+                     '#chkFilterActive','#chkFilterInactive'
+                    ].forEach(id => view.querySelector(id).addEventListener('change', () => applyFilters(view)));
+
+                    var dropBtn   = view.querySelector('#btnFilterDropdown');
+                    var dropPanel = view.querySelector('#filterDropdownPanel');
+                    var dropCaret = view.querySelector('#filterDropdownCaret');
+
+                    dropBtn.addEventListener('click', e => {
+                        e.stopPropagation();
+                        var open = dropPanel.classList.toggle('open');
+                        dropCaret.textContent = open ? 'expand_less' : 'expand_more';
+                    });
+
+                    document.addEventListener('click', function closeFilterDrop(e) {
+                        if (!dropPanel.contains(e.target) && e.target !== dropBtn) {
+                            dropPanel.classList.remove('open');
+                            dropCaret.textContent = 'expand_more';
+                        }
+                    });
                 }
 
                 view.querySelector('#btnAddTag').addEventListener('click', () => {
@@ -2781,6 +2970,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 window.ApiClient.getPluginConfiguration(pluginId).then(config => {
                     lastHscConfig = {
                         HomeSyncEnabled:       config.HomeSyncEnabled       || false,
+                        HomeSyncLibraryOrder:  config.HomeSyncLibraryOrder  || false,
                         HomeSyncSourceUserId:  config.HomeSyncSourceUserId  || '',
                         HomeSyncTargetUserIds: config.HomeSyncTargetUserIds || []
                     };
@@ -2795,8 +2985,12 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                         view.querySelector('#txtSearchTags').value = '';
                         view.querySelector('#btnClearSearch').style.display = 'none';
                     }
-                    if (view.querySelector('#chkFilterSchedule')) view.querySelector('#chkFilterSchedule').checked = false;
-                    if (view.querySelector('#chkFilterCollection')) view.querySelector('#chkFilterCollection').checked = false;
+                    ['#chkFilterTag','#chkFilterCollection','#chkFilterSchedule','#chkFilterHomeScreen',
+                     '#chkFilterSrcExternal','#chkFilterSrcMediaInfo','#chkFilterSrcCollection','#chkFilterSrcPlaylist',
+                     '#chkFilterActive','#chkFilterInactive'
+                    ].forEach(id => { var el = view.querySelector(id); if (el) el.checked = false; });
+                    var lbl = view.querySelector('#filterDropdownLabel'); if (lbl) lbl.textContent = 'Filter';
+                    var btn = view.querySelector('#btnFilterDropdown'); if (btn) btn.classList.remove('active');
 
                     var grouped = groupConfigTags(config.Tags);
 

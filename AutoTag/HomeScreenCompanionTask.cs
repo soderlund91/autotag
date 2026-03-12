@@ -181,6 +181,8 @@ namespace HomeScreenCompanion
                 }
 
                 var userDataCache = new Dictionary<(Guid, long), (bool Played, DateTimeOffset? LastPlayedDate, int PlayCount)>();
+                var seriesLastPlayedCache = new Dictionary<(Guid, long), DateTimeOffset?>();
+                var preloadedUsers = _userManager.GetUserList(new UserQuery { IsDisabled = false });
 
                 var activeTagOverrides = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var activeCollectionOverrides = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -371,7 +373,7 @@ namespace HomeScreenCompanion
                                 if (!string.IsNullOrEmpty(imdb) && blacklist.Contains(imdb)) continue;
 
                                 CachedMediaInfo? ci = mediaInfoCache.TryGetValue(item.InternalId, out var ciVal) ? ciVal : (CachedMediaInfo?)null;
-                                if (ItemMatchesMediaInfo(item, tagConfig, debug, seriesEpisodeCache, personCache, userDataCache, ci))
+                                if (ItemMatchesMediaInfo(item, tagConfig, debug, seriesEpisodeCache, personCache, userDataCache, ci, preloadedUsers, seriesLastPlayedCache))
                                 {
                                     matchedLocalItems.Add(item);
                                     if (effectiveLimit < 10000 && matchedLocalItems.Count >= effectiveLimit) break;
@@ -850,6 +852,31 @@ namespace HomeScreenCompanion
             return cached;
         }
 
+        private DateTimeOffset? GetSeriesLastPlayed(User user, BaseItem seriesItem,
+            Dictionary<(Guid, long), DateTimeOffset?> cache)
+        {
+            var key = (user.Id, seriesItem.InternalId);
+            if (cache.TryGetValue(key, out var cached)) return cached;
+
+            var episodes = _libraryManager.GetItemList(new InternalItemsQuery
+            {
+                IncludeItemTypes = new[] { "Episode" },
+                Parent = seriesItem,
+                Recursive = true
+            });
+
+            DateTimeOffset? maxDate = null;
+            foreach (var ep in episodes)
+            {
+                var ud = _userDataManager?.GetUserData(user, ep);
+                if (ud?.LastPlayedDate.HasValue == true && (maxDate == null || ud.LastPlayedDate > maxDate))
+                    maxDate = ud.LastPlayedDate;
+            }
+
+            cache[key] = maxDate;
+            return maxDate;
+        }
+
         private static CachedMediaInfo ExtractMediaInfo(BaseItem itemToCheck)
         {
             var info = new CachedMediaInfo { AudioLanguages = new HashSet<string>(StringComparer.OrdinalIgnoreCase) };
@@ -923,7 +950,9 @@ namespace HomeScreenCompanion
             Dictionary<long, BaseItem>? seriesEpisodeCache = null,
             Dictionary<string, HashSet<long>>? personCache = null,
             Dictionary<(Guid, long), (bool Played, DateTimeOffset? LastPlayedDate, int PlayCount)>? userDataCache = null,
-            CachedMediaInfo? cachedInfo = null)
+            CachedMediaInfo? cachedInfo = null,
+            User[]? preloadedUsers = null,
+            Dictionary<(Guid, long), DateTimeOffset?>? seriesLastPlayedCache = null)
         {
             var filters = tagConfig.MediaInfoFilters;
             var legacy = tagConfig.MediaInfoConditions;
@@ -980,7 +1009,7 @@ namespace HomeScreenCompanion
                 bool EvalCrit(string c) => EvaluateCriterion(c, itemToCheck, is4k, is1080, is720, is8k, isSd,
                     isHevc, isAv1, isH264, isHdr, isHdr10, isDv, isAtmos, isTrueHd, isDtsHdMa, isDts,
                     isAc3, isAac, is51, is71, isStereo, isMono, personCache, audioLanguages, mediaType, itemTags,
-                    userDataCache, cachedDateModifiedDays, cachedFileSizeMb);
+                    userDataCache, cachedDateModifiedDays, cachedFileSizeMb, preloadedUsers, seriesLastPlayedCache);
                 bool EvalGroup(MediaInfoFilter f)
                 {
                     if (f.Criteria == null || f.Criteria.Count == 0) return true;
@@ -1001,7 +1030,7 @@ namespace HomeScreenCompanion
             {
                 if (!EvaluateCriterion(cond, itemToCheck, is4k, is1080, is720, is8k, isSd, isHevc, isAv1, isH264,
                     isHdr, isHdr10, isDv, isAtmos, isTrueHd, isDtsHdMa, isDts, isAc3, isAac, is51, is71, isStereo, isMono,
-                    personCache, audioLanguages, mediaType, itemTags, userDataCache, cachedDateModifiedDays, cachedFileSizeMb))
+                    personCache, audioLanguages, mediaType, itemTags, userDataCache, cachedDateModifiedDays, cachedFileSizeMb, preloadedUsers, seriesLastPlayedCache))
                     return false;
             }
             return true;
@@ -1018,7 +1047,9 @@ namespace HomeScreenCompanion
             string[]? itemTags = null,
             Dictionary<(Guid, long), (bool Played, DateTimeOffset? LastPlayedDate, int PlayCount)>? userDataCache = null,
             double? cachedDateModifiedDays = null,
-            double? cachedFileSizeMb = null)
+            double? cachedFileSizeMb = null,
+            User[]? preloadedUsers = null,
+            Dictionary<(Guid, long), DateTimeOffset?>? seriesLastPlayedCache = null)
         {
             bool negate = cond.Length > 0 && cond[0] == '!';
             if (negate) cond = cond.Substring(1);
@@ -1053,7 +1084,7 @@ namespace HomeScreenCompanion
                 if (userId4 == "__any__" || userId4 == "__all__")
                 {
                     bool matchAll = userId4 == "__all__";
-                    var allUsers = _userManager.GetUserList(new UserQuery { IsDisabled = false });
+                    var allUsers = preloadedUsers ?? _userManager.GetUserList(new UserQuery { IsDisabled = false });
                     if (allUsers == null || allUsers.Length == 0) return false;
                     if (prop4 == "IsPlayed")
                     {
@@ -1071,14 +1102,17 @@ namespace HomeScreenCompanion
                         double.TryParse(valStr4, System.Globalization.NumberStyles.Any,
                                         System.Globalization.CultureInfo.InvariantCulture, out var daysU))
                     {
+                        bool isSeries = item.GetType().Name.Contains("Series");
                         Func<User, bool> checkLp = u => {
-                            var k = (u.Id, item.InternalId);
                             DateTimeOffset? lpDate;
-                            if (userDataCache != null && userDataCache.TryGetValue(k, out var cd)) { lpDate = cd.LastPlayedDate; }
-                            else {
-                                var ud2 = _userDataManager?.GetUserData(u, item);
-                                lpDate = ud2?.LastPlayedDate;
-                                if (userDataCache != null) userDataCache[k] = ud2 == null ? (false, (DateTimeOffset?)null, 0) : (ud2.Played, ud2.LastPlayedDate, ud2.PlayCount);
+                            if (isSeries)
+                                lpDate = seriesLastPlayedCache != null ? GetSeriesLastPlayed(u, item, seriesLastPlayedCache) : null;
+                            else
+                            {
+                                var k = (u.Id, item.InternalId);
+                                if (userDataCache != null && userDataCache.TryGetValue(k, out var cd)) { lpDate = cd.LastPlayedDate; }
+                                else { var ud2 = _userDataManager?.GetUserData(u, item); lpDate = ud2?.LastPlayedDate;
+                                       if (userDataCache != null) userDataCache[k] = ud2 == null ? (false, (DateTimeOffset?)null, 0) : (ud2.Played, ud2.LastPlayedDate, ud2.PlayCount); }
                             }
                             if (lpDate == null) return false;
                             return ApplyNumericOp((DateTimeOffset.UtcNow - lpDate.Value).TotalDays, op4, daysU);
@@ -1093,11 +1127,8 @@ namespace HomeScreenCompanion
                             var k = (u.Id, item.InternalId);
                             int playCount;
                             if (userDataCache != null && userDataCache.TryGetValue(k, out var cd)) { playCount = cd.PlayCount; }
-                            else {
-                                var ud2 = _userDataManager?.GetUserData(u, item);
-                                playCount = ud2?.PlayCount ?? 0;
-                                if (userDataCache != null) userDataCache[k] = ud2 == null ? (false, (DateTimeOffset?)null, 0) : (ud2.Played, ud2.LastPlayedDate, ud2.PlayCount);
-                            }
+                            else { var ud2 = _userDataManager?.GetUserData(u, item); playCount = ud2?.PlayCount ?? 0;
+                                   if (userDataCache != null) userDataCache[k] = ud2 == null ? (false, (DateTimeOffset?)null, 0) : (ud2.Played, ud2.LastPlayedDate, ud2.PlayCount); }
                             return ApplyNumericOp(playCount, op4, countU);
                         };
                         return matchAll ? allUsers.All(checkPc) : allUsers.Any(checkPc);
@@ -1124,11 +1155,15 @@ namespace HomeScreenCompanion
                     bool wantWatched = string.Equals(valStr4, "Watched", StringComparison.OrdinalIgnoreCase);
                     return udResult.Played == wantWatched;
                 }
-                if (prop4 == "LastPlayed" && udResult.LastPlayedDate.HasValue &&
+                if (prop4 == "LastPlayed" &&
                     double.TryParse(valStr4, System.Globalization.NumberStyles.Any,
                                     System.Globalization.CultureInfo.InvariantCulture, out var days4))
                 {
-                    return ApplyNumericOp((DateTime.UtcNow - udResult.LastPlayedDate.Value).TotalDays, op4, days4);
+                    DateTimeOffset? lpDate4 = item.GetType().Name.Contains("Series") && seriesLastPlayedCache != null
+                        ? GetSeriesLastPlayed(_userManager.GetUserById(guid4)!, item, seriesLastPlayedCache)
+                        : udResult.LastPlayedDate;
+                    if (!lpDate4.HasValue) return false;
+                    return ApplyNumericOp((DateTime.UtcNow - lpDate4.Value).TotalDays, op4, days4);
                 }
                 if (prop4 == "PlayCount" &&
                     double.TryParse(valStr4, System.Globalization.NumberStyles.Any,

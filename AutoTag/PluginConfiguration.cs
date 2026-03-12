@@ -16,6 +16,7 @@ namespace HomeScreenCompanion
         public bool HomeSyncEnabled { get; set; } = false;
         public string HomeSyncSourceUserId { get; set; } = "";
         public List<string> HomeSyncTargetUserIds { get; set; } = new List<string>();
+        public bool HomeSyncLibraryOrder { get; set; } = false;
     }
 
     public class TagConfig
