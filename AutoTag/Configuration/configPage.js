@@ -6,6 +6,32 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
     var originalConfigState = null;
     var statusRequestId = 0;
 
+    function applyPluginTheme() {
+        var candidates = ['.skinHeader', '.mainDrawer', '.contentScrollSlider', 'body'];
+        var bg = null;
+        for (var i = 0; i < candidates.length; i++) {
+            var el = document.querySelector(candidates[i]);
+            if (!el) continue;
+            var c = getComputedStyle(el).backgroundColor;
+            if (c && c !== 'transparent' && c !== 'rgba(0, 0, 0, 0)') { bg = c; break; }
+        }
+        var isDark = true;
+        if (bg) {
+            var m = bg.match(/\d+/g);
+            if (m) isDark = (parseInt(m[0]) * 0.299 + parseInt(m[1]) * 0.587 + parseInt(m[2]) * 0.114) < 128;
+        }
+        var root = document.documentElement;
+        if (isDark) {
+            root.style.setProperty('--plugin-popup-bg', '#2a2a2a');
+            root.style.setProperty('--plugin-popup-color', '#e8e8e8');
+            root.style.setProperty('--plugin-popup-border', 'rgba(255,255,255,0.12)');
+        } else {
+            root.style.setProperty('--plugin-popup-bg', '#f0f0f0');
+            root.style.setProperty('--plugin-popup-color', '#1a1a1a');
+            root.style.setProperty('--plugin-popup-border', 'rgba(0,0,0,0.15)');
+        }
+    }
+
     var cachedCollections = [];
     var cachedPlaylists = [];
     var cachedTags = [];
@@ -333,8 +359,9 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             top: calc(100% + 6px);
             left: 0;
             z-index: 9999;
-            background: var(--theme-background-level2, #1e1e1e);
-            border: 1px solid var(--line-color);
+            background: var(--plugin-popup-bg, #2a2a2a);
+            color: var(--plugin-popup-color, #e8e8e8);
+            border: 1px solid var(--plugin-popup-border, rgba(255,255,255,0.12));
             border-radius: 6px;
             box-shadow: 0 6px 20px rgba(0,0,0,0.4);
             padding: 10px 14px;
@@ -715,9 +742,9 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
     var MI_NUMERIC_PROPS = ['CommunityRating', 'Year', 'Runtime', 'DateAdded', 'DateModified', 'FileSize', 'LastPlayed', 'PlayCount'];
     var MI_UNIT_LABELS = { DateAdded: 'days ago', DateModified: 'days ago', LastPlayed: 'days ago', FileSize: 'MB', PlayCount: 'plays' };
     var MI_USER_PROPS = ['IsPlayed', 'LastPlayed', 'PlayCount'];
-    var MI_TEXT_MATCH_PROPS = ['Tag', 'Title', 'Studio', 'Genre', 'Actor', 'Director', 'Writer', 'ContentRating', 'AudioLanguage'];
+    var MI_TEXT_MATCH_PROPS = ['Tag', 'Title', 'EpisodeTitle', 'Overview', 'Studio', 'Genre', 'Actor', 'Director', 'Writer', 'ContentRating', 'AudioLanguage'];
     var MI_TEXT_MATCH_DEFAULT = {
-        Title: 'contains', Studio: 'contains', Genre: 'contains', Tag: 'contains',
+        Title: 'contains', EpisodeTitle: 'contains', Overview: 'contains', Studio: 'contains', Genre: 'contains', Tag: 'contains',
         Actor: 'exact', Director: 'exact', Writer: 'exact',
         ContentRating: 'exact', AudioLanguage: 'exact'
     };
@@ -758,7 +785,8 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         ]}
     ];
     var MI_TEXT_PLACEHOLDERS = {
-        Title: 'e.g. Batman', Studio: 'e.g. Warner', Genre: 'e.g. Action',
+        Title: 'e.g. Batman', EpisodeTitle: 'e.g. Pilot', Overview: 'e.g. heist, time travel',
+        Studio: 'e.g. Warner', Genre: 'e.g. Action',
         Actor: 'e.g. Tom Hanks', Director: 'e.g. Nolan', Writer: 'e.g. Tarantino',
         ContentRating: 'e.g. PG-13', ImdbId: 'e.g. tt1234567, tt7654321'
     };
@@ -767,7 +795,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         var groups = [
             { label: 'Video', props: [['Resolution','Resolution'], ['VideoCodec','Video Codec'], ['HDR','HDR']] },
             { label: 'Audio', props: [['AudioFormat','Audio Format'], ['AudioChannels','Audio Channels'], ['AudioLanguage','Audio Language']] },
-            { label: 'Content', props: [['MediaType','Media Type'], ['Tag','Tag'], ['Title','Title'], ['Studio','Studio'], ['Genre','Genre'], ['Actor','Actor / Cast'], ['Director','Director'], ['Writer','Writer'], ['ContentRating','Content Rating'], ['ImdbId','IMDB ID']] },
+            { label: 'Content', props: [['MediaType','Media Type'], ['Tag','Tag'], ['Title','Title'], ['EpisodeTitle','Title (Episode)'], ['Overview','Overview'], ['Studio','Studio'], ['Genre','Genre'], ['Actor','Actor / Cast'], ['Director','Director'], ['Writer','Writer'], ['ContentRating','Content Rating'], ['ImdbId','IMDB ID']] },
             { label: 'Metrics', props: [['CommunityRating','Community Rating'], ['Year','Year'], ['Runtime','Runtime (minutes)'], ['DateAdded','Date Added'], ['DateModified','Date Modified'], ['FileSize','File Size (MB)']] },
             { label: 'Activity', props: [['IsPlayed','Watched / Unwatched'], ['LastPlayed','Last Played'], ['PlayCount','Play Count']] }
         ];
@@ -1153,6 +1181,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                         <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
                             <label style="font-size:0.9em; white-space:nowrap; margin:0;">Max items</label>
                             <input is="emby-input" class="txtMediaInfoLimit" type="number" value="${mediaInfoLimit}" min="0" style="width:90px;" />
+                            <button type="button" is="emby-button" class="btnMiHelp raised" style="margin-left:auto; background:transparent; border:1px solid rgba(128,128,128,0.35); color:var(--theme-text-secondary); font-size:0.82em; padding:0 10px; min-width:0;"><i class="md-icon" style="font-size:1em; margin-right:4px;">help_outline</i><span>How to (filter guide)</span></button>
                         </div>
                         <div class="mediainfo-filter-list">${filterGroupsHtml}</div>
                         <button type="button" is="emby-button" class="btnAddMediaInfoFilter raised" style="width:100%; background:transparent; border:2px dashed rgba(128,128,128,0.4); color:var(--theme-text-secondary); margin-top:8px;"><i class="md-icon" style="margin-right:5px;">add</i>Add Filter</button>
@@ -1465,6 +1494,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         row.querySelector('.btnAddDate').addEventListener('click', () => {
             row.querySelector('.date-list-container').insertAdjacentHTML('beforeend', getDateRowHtml({ Type: 'SpecificDate' }));
             updateBadges(row);
+        });
+
+        row.querySelector('.btnMiHelp').addEventListener('click', () => {
+            document.getElementById('miHelpModalOverlay').classList.add('modal-visible');
         });
 
         row.addEventListener('click', e => {
@@ -2344,6 +2377,8 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         var enabled      = config.HomeSyncEnabled ? ' checked' : '';
         var libOrderChk  = config.HomeSyncLibraryOrder ? ' checked' : '';
 
+        var syncDisplay = config.HomeSyncEnabled ? '' : 'none';
+
         container.innerHTML = [
             '<div class="hsc-card">',
             '<h3 class="hsc-section-title">Configuration</h3>',
@@ -2351,6 +2386,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             '<label><input is="emby-checkbox" type="checkbox" id="chkHscEnabled"' + enabled + ' /><span>Enable Home Screen sync</span></label>',
             '<div class="fieldDescription">When enabled, the plugin syncs all Home Sections from the target user and applies it to those selected. When disabled, the task always skips — even if triggered manually.</div>',
             '</div>',
+            '<div id="hscSyncConfig" style="display:' + syncDisplay + '">',
             '<div class="checkboxContainer checkboxContainer-withDescription" style="margin-top:8px;">',
             '<label><input is="emby-checkbox" type="checkbox" id="chkHscLibraryOrder"' + libOrderChk + ' /><span>Also copy library order</span></label>',
             '<div class="fieldDescription">Also syncs the order of media libraries in the navigation sidebar.</div>',
@@ -2363,8 +2399,9 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             '<div class="fieldDescription">Home screen sections will be copied FROM this user to all users selected below.</div>',
             '</div>',
             '</div>',
+            '</div>',
 
-            '<div class="hsc-card">',
+            '<div class="hsc-card" id="hscSyncToCard" style="display:' + syncDisplay + '">',
             '<h3 class="hsc-section-title">Sync to</h3>',
             '<p class="textMuted" style="font-size:0.88em;margin-bottom:12px;">These users will receive the source user\'s home screen layout on each sync.</p>',
             '<div class="hsc-user-list" id="hscTargetList">',
@@ -2403,6 +2440,18 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 renderHscTab(container, lastHscConfig, users || []);
 
                 enforceHscSourceTargetConflict(container);
+
+                var enableChk = container.querySelector('#chkHscEnabled');
+                if (enableChk) {
+                    enableChk.addEventListener('change', function () {
+                        var show = this.checked;
+                        var syncConfig = container.querySelector('#hscSyncConfig');
+                        var syncToCard = container.querySelector('#hscSyncToCard');
+                        if (syncConfig) syncConfig.style.display = show ? '' : 'none';
+                        if (syncToCard) syncToCard.style.display = show ? '' : 'none';
+                        setTimeout(checkFormState, 0);
+                    });
+                }
 
                 var sourceSelect = container.querySelector('#selHscSourceUser');
                 if (sourceSelect) {
@@ -2715,6 +2764,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             if (!document.getElementById('homeScreenCompanionCustomCss')) {
                 document.body.insertAdjacentHTML('beforeend', customCss);
             }
+            applyPluginTheme();
 
             var form = view.querySelector('.HomeScreenCompanionForm');
             var isFirstVisit = !view.dataset.hscInit;
@@ -2792,6 +2842,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 view.querySelector('#btnOpenHelp').addEventListener('click', () => helpOverlay.classList.add('modal-visible'));
                 view.querySelector('#btnCloseHelp').addEventListener('click', () => helpOverlay.classList.remove('modal-visible'));
                 helpOverlay.addEventListener('click', e => { if (e.target === helpOverlay) helpOverlay.classList.remove('modal-visible'); });
+
+                var miHelpOverlay = view.querySelector('#miHelpModalOverlay');
+                view.querySelector('#btnCloseMiHelp').addEventListener('click', () => miHelpOverlay.classList.remove('modal-visible'));
+                miHelpOverlay.addEventListener('click', e => { if (e.target === miHelpOverlay) miHelpOverlay.classList.remove('modal-visible'); });
 
                 var headerAction = view.querySelector('.sectionTitleContainer');
                 if (headerAction && !view.querySelector('#cbSortTags')) {

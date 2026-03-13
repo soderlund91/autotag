@@ -1116,7 +1116,9 @@ namespace HomeScreenCompanion
                     "Actor"         => personCache != null && personCache.TryGetValue(cond, out var aIds) && aIds.Contains(item.InternalId),
                     "Director"      => personCache != null && personCache.TryGetValue(cond, out var dIds) && dIds.Contains(item.InternalId),
                     "Writer"        => personCache != null && personCache.TryGetValue(cond, out var wIds) && wIds.Contains(item.InternalId),
-                    "Title"         => item.Name?.IndexOf(val, StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Title"         => GetTitleName(item)?.IndexOf(val, StringComparison.OrdinalIgnoreCase) >= 0,
+                    "EpisodeTitle"  => MatchesEpisodeTitle(item, val, false),
+                    "Overview"      => item.Overview?.IndexOf(val, StringComparison.OrdinalIgnoreCase) >= 0,
                     "ContentRating" => string.Equals(item.OfficialRating, val, StringComparison.OrdinalIgnoreCase),
                     "AudioLanguage" => audioLanguages != null && audioLanguages.Contains(val),
                     "MediaType"     => string.Equals(mediaType, val, StringComparison.OrdinalIgnoreCase),
@@ -1226,8 +1228,11 @@ namespace HomeScreenCompanion
                 bool exact = tOp == "exact";
                 return tProp switch
                 {
-                    "Title"         => exact ? string.Equals(item.Name, tVal, StringComparison.OrdinalIgnoreCase)
-                                             : item.Name?.IndexOf(tVal, StringComparison.OrdinalIgnoreCase) >= 0,
+                    "Title"         => exact ? string.Equals(GetTitleName(item), tVal, StringComparison.OrdinalIgnoreCase)
+                                             : GetTitleName(item)?.IndexOf(tVal, StringComparison.OrdinalIgnoreCase) >= 0,
+                    "EpisodeTitle"  => MatchesEpisodeTitle(item, tVal, exact),
+                    "Overview"      => exact ? string.Equals(item.Overview, tVal, StringComparison.OrdinalIgnoreCase)
+                                             : item.Overview?.IndexOf(tVal, StringComparison.OrdinalIgnoreCase) >= 0,
                     "Studio"        => exact ? item.Studios != null && item.Studios.Any(s => string.Equals(s, tVal, StringComparison.OrdinalIgnoreCase))
                                              : MatchesAny(item.Studios, tVal),
                     "Genre"         => exact ? item.Genres != null && item.Genres.Any(g => string.Equals(g, tVal, StringComparison.OrdinalIgnoreCase))
@@ -1303,6 +1308,36 @@ namespace HomeScreenCompanion
                 }
             }
             catch { }
+            return false;
+        }
+
+        private static string? GetTitleName(BaseItem item)
+        {
+            if (item.GetType().Name.Contains("Episode"))
+                return null;
+            return item.Name;
+        }
+
+        private bool MatchesEpisodeTitle(BaseItem item, string val, bool exact)
+        {
+            Func<string?, bool> matches = exact
+                ? (n => string.Equals(n, val, StringComparison.OrdinalIgnoreCase))
+                : (n => n?.IndexOf(val, StringComparison.OrdinalIgnoreCase) >= 0);
+
+            var typeName = item.GetType().Name;
+
+            if (typeName.Contains("Movie"))   return false;
+            if (typeName.Contains("Episode")) return matches(item.Name);
+            if (typeName.Contains("Series"))
+            {
+                var episodes = _libraryManager.GetItemList(new InternalItemsQuery
+                {
+                    IncludeItemTypes = new[] { "Episode" },
+                    Parent = item,
+                    Recursive = true
+                });
+                return episodes.Any(ep => matches(ep.Name));
+            }
             return false;
         }
 

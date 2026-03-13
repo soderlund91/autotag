@@ -211,14 +211,14 @@
         }
 
         .modal-content {
-            background-color: #1e1e1e !important;
-            color: #eeeeee !important;
+            background-color: var(--plugin-popup-bg, #2a2a2a) !important;
+            color: var(--plugin-popup-color, #e8e8e8) !important;
             padding: 0;
             border-radius: 12px;
             max-width: 650px;
             width: 90%;
             box-shadow: 0 25px 50px rgba(0,0,0,0.5);
-            border: 1px solid rgba(255,255,255,0.15);
+            border: 1px solid var(--plugin-popup-border, rgba(255,255,255,0.15));
             position: relative;
             transform: translateY(20px);
             transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -574,16 +574,16 @@
             bottom: calc(100% + 8px);
             left: 50%;
             transform: translateX(-50%);
-            background: #222;
-            border: 1px solid rgba(255,255,255,0.15);
+            background: var(--theme-background-level3, Canvas);
+            border: 1px solid var(--line-color, rgba(128,128,128,0.3));
             border-radius: 7px;
             padding: 10px 14px;
             white-space: nowrap;
             z-index: 2000;
             font-size: 0.82em;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+            box-shadow: 0 4px 14px rgba(0,0,0,0.25);
             pointer-events: none;
-            color: #ddd;
+            color: var(--theme-text-primary, CanvasText);
         }
 
         .mi-op-info:hover .mi-op-tooltip {
@@ -631,9 +631,9 @@
         }
 
         .run-dial-item {
-            background: #2a2a2a;
-            color: #fff;
-            border: 1px solid rgba(255,255,255,0.12);
+            background: var(--theme-background-level2, Canvas);
+            color: var(--theme-text-primary, CanvasText);
+            border: 1px solid var(--line-color, rgba(128,128,128,0.3));
             border-radius: 20px;
             padding: 8px 16px;
             cursor: pointer;
@@ -642,12 +642,12 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
             transition: background 0.15s;
         }
 
         .run-dial-item:hover {
-            background: #3d3d3d;
+            background: var(--theme-background-level3, rgba(128,128,128,0.15));
         }
 
         .run-dial-chevron {
@@ -739,6 +739,14 @@
         }
         @media (max-width: 600px) {
             .src-cards, .mi-help-grid { grid-template-columns: 1fr; }
+        }
+        .mi-help-prop {
+            display: inline-block;
+            background: rgba(255,255,255,0.08);
+            border-radius: 4px;
+            padding: 1px 7px;
+            font-family: monospace;
+            font-size: 0.9em;
         }
     </style>
 
@@ -1155,6 +1163,65 @@
                     <button is="emby-button" type="button" id="btnCloseHelp" class="raised button-submit" style="background:#52B54B; color:white; padding: 0 25px;">Close Guide</button>
                 </div>
 
+            </div>
+        </div>
+    </div>
+
+    <div id="miHelpModalOverlay" class="modal-backdrop">
+        <div class="modal-content" style="max-width:700px; width:95%;">
+            <div class="modal-header-bar" style="background:linear-gradient(135deg,#00a4dc 0%,#007ba8 100%);">
+                <i class="md-icon modal-header-icon">filter_list</i>
+                <div>
+                    <h2 class="modal-header-title">Local Media Information — Filter Guide</h2>
+                    <span style="opacity:0.9;font-size:0.9em;">How the smart filter rules work</span>
+                </div>
+            </div>
+            <div class="modal-body-scroll" style="padding:24px;">
+
+                <div class="help-section"><i class="md-icon help-section-icon">rule</i>How Rules Work</div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">add_circle_outline</i><div>Each <b>rule</b> compares one property against a value. Add multiple rules to a group to combine conditions.</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">do_not_disturb_on</i><div>The <b>NOT</b> button on each rule negates it — e.g. <i>NOT Genre: Action</i> matches items that are <b>not</b> action.</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">device_hub</i><div><b>AND / OR within a group</b> — the radio buttons at the top of a group control how rules in that group are combined.</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">layers</i><div><b>AND / OR between groups</b> — the connector badge between groups controls how groups relate to each other.</div></div>
+
+                <div class="help-section"><i class="md-icon help-section-icon">videocam</i>Video</div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Resolution</span> — 4K, 1080p, 720p, SD, 8K</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Video Codec</span> — HEVC/H.265, AV1, H.264</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">HDR</span> — Any HDR, HDR10, or Dolby Vision</div></div>
+
+                <div class="help-section"><i class="md-icon help-section-icon">volume_up</i>Audio</div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Audio Format</span> — Atmos, TrueHD, DTS-HD MA, DTS, AC3, AAC</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Audio Channels</span> — 7.1, 5.1, Stereo, Mono</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Audio Language</span> — matches if the file contains a track in the specified language (e.g. <i>swe</i>, <i>eng</i>)</div></div>
+
+                <div class="help-section"><i class="md-icon help-section-icon">local_movies</i>Content</div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Media Type</span> — Movie or Series</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Tag</span> — matches items that already have a specific Emby tag applied</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Title</span> — matches movie or series name (not episode titles)</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Title (Episode)</span> — for series: matches if any episode has this title; for episodes: matches directly</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Overview</span> — searches the plot description/summary for keywords or phrases</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Studio</span> — production studio name</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Genre</span> — e.g. Action, Drama, Comedy</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Actor / Cast</span> — name of a cast member (exact match recommended)</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Director</span> / <span class="mi-help-prop">Writer</span> — crew members</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Content Rating</span> — e.g. PG-13, TV-MA (exact match)</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">IMDB ID</span> — one or more comma-separated IDs, e.g. <i>tt0468569, tt1375666</i></div></div>
+
+                <div class="help-section"><i class="md-icon help-section-icon">bar_chart</i>Metrics</div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Community Rating</span> — Emby/IMDB score, use numeric operators (=, &gt;, &gt;=, &lt;, &lt;=)</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Year</span> — release year</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Runtime</span> — in minutes</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Date Added</span> / <span class="mi-help-prop">Date Modified</span> — number of days ago (e.g. <i>&lt;= 30</i> = last 30 days)</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">File Size</span> — in MB</div></div>
+
+                <div class="help-section"><i class="md-icon help-section-icon">history</i>Activity</div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Watched / Unwatched</span> — filter by play status per user</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Last Played</span> — days since last watched (e.g. <i>&lt;= 7</i> = watched in last week)</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Play Count</span> — number of times watched</div></div>
+
+                <div style="text-align:right;margin-top:24px;padding-top:16px;border-top:1px solid var(--line-color,rgba(128,128,128,0.3));">
+                    <button is="emby-button" type="button" id="btnCloseMiHelp" class="raised button-submit" style="background:#00a4dc;color:white;padding:0 25px;">Got it</button>
+                </div>
             </div>
         </div>
     </div>
