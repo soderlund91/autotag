@@ -28,6 +28,7 @@ namespace HomeScreenCompanion
         private readonly IJsonSerializer _jsonSerializer;
         private readonly ILogger _logger;
 
+        public static HomeScreenCompanionTask? Instance { get; private set; }
         public static string LastRunStatus { get; private set; } = "Unknown (resets at server restart)";
         public static List<string> ExecutionLog { get; } = new List<string>();
         public static bool IsRunning { get; private set; } = false;
@@ -53,6 +54,7 @@ namespace HomeScreenCompanion
             _httpClient = httpClient;
             _jsonSerializer = jsonSerializer;
             _logger = logManager.GetLogger("HomeScreenCompanion");
+            Instance = this;
         }
 
         public string Key => "HomeScreenCompanionSyncTask";
@@ -577,6 +579,240 @@ namespace HomeScreenCompanion
                 LogSummary($"CRITICAL ERROR: {ex.Message}", "Error");
             }
             finally { IsRunning = false; }
+        }
+
+        public async Task<(bool Success, string Message)> RunSingleEntryAsync(string entryName, CancellationToken cancellationToken)
+        {
+            IsRunning = true;
+            lock (ExecutionLog) ExecutionLog.Clear();
+            LastRunStatus = "Running...";
+            try
+            {
+            return await RunSingleEntryInternalAsync(entryName, cancellationToken);
+            }
+            finally
+            {
+                IsRunning = false;
+            }
+        }
+
+        private async Task<(bool Success, string Message)> RunSingleEntryInternalAsync(string entryName, CancellationToken cancellationToken)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return (false, "Config not found");
+
+            var tagConfig = config.Tags.FirstOrDefault(t =>
+                string.Equals(t.Name, entryName, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrWhiteSpace(t.Name) == false && string.Equals(t.Tag, entryName, StringComparison.OrdinalIgnoreCase)));
+            if (tagConfig == null) { LastRunStatus = $"Failed: entry not found"; return (false, $"Entry '{entryName}' not found in saved config"); }
+            if (string.IsNullOrWhiteSpace(tagConfig.Tag)) { LastRunStatus = "Failed: no tag name"; return (false, "Entry has no tag name"); }
+
+            string _displayName = !string.IsNullOrWhiteSpace(tagConfig.Name) ? $"{tagConfig.Name} [{tagConfig.Tag.Trim()}]" : tagConfig.Tag.Trim();
+            LogSummary($"Single-entry run: {_displayName}");
+
+            bool debug = config.ExtendedConsoleOutput;
+            bool dryRun = config.DryRunMode;
+
+            var allItems = _libraryManager.GetItemList(new InternalItemsQuery
+            {
+                IncludeItemTypes = new[] { "Movie", "Series" },
+                Recursive = true,
+                IsVirtualItem = false
+            }).ToList();
+
+            var imdbLookup = new Dictionary<string, List<BaseItem>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in allItems)
+            {
+                if (item.LocationType != LocationType.FileSystem) continue;
+                var imdb = item.GetProviderId("Imdb");
+                if (!string.IsNullOrEmpty(imdb))
+                {
+                    if (!imdbLookup.ContainsKey(imdb)) imdbLookup[imdb] = new List<BaseItem>();
+                    imdbLookup[imdb].Add(item);
+                }
+            }
+
+            var seriesEpisodeCache = new Dictionary<long, BaseItem>();
+            var personCache = new Dictionary<string, HashSet<long>>(StringComparer.OrdinalIgnoreCase);
+            var mediaInfoCache = new Dictionary<long, CachedMediaInfo>();
+            var userDataCache = new Dictionary<(Guid, long), (bool Played, DateTimeOffset? LastPlayedDate, int PlayCount)>();
+            var seriesLastPlayedCache = new Dictionary<(Guid, long), DateTimeOffset?>();
+            var preloadedUsers = _userManager.GetUserList(new UserQuery { IsDisabled = false });
+
+            if (tagConfig.SourceType == "MediaInfo")
+            {
+                var allCriteria = (tagConfig.MediaInfoFilters ?? new List<MediaInfoFilter>())
+                    .SelectMany(f => f.Criteria ?? new List<string>())
+                    .Concat(tagConfig.MediaInfoConditions ?? new List<string>())
+                    .Select(c => c.Length > 0 && c[0] == '!' ? c.Substring(1) : c)
+                    .Distinct(StringComparer.OrdinalIgnoreCase);
+                foreach (var c in allCriteria)
+                {
+                    if (personCache.ContainsKey(c)) continue;
+                    var p = c.Split(':');
+                    if ((p.Length == 2 || (p.Length == 3 && (p[1] == "exact" || p[1] == "contains")))
+                        && (p[0] == "Actor" || p[0] == "Director" || p[0] == "Writer")
+                        && Enum.TryParse<MediaBrowser.Model.Entities.PersonType>(p[0], out var personTypeEnum))
+                    {
+                        string matchOp = p.Length == 3 ? p[1] : "exact";
+                        string personName = p.Length == 3 ? p[2].Trim() : p[1].Trim();
+                        if (matchOp == "contains") continue;
+                        var personItem = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { "Person" }, Name = personName }).FirstOrDefault();
+                        personCache[c] = personItem == null ? new HashSet<long>() :
+                            _libraryManager.GetItemList(new InternalItemsQuery
+                            {
+                                PersonIds = new[] { personItem.InternalId },
+                                PersonTypes = new[] { personTypeEnum },
+                                IncludeItemTypes = new[] { "Movie", "Series" },
+                                Recursive = true,
+                                IsVirtualItem = false
+                            }).Select(x => x.InternalId).ToHashSet();
+                    }
+                }
+                foreach (var item in allItems)
+                {
+                    if (item.LocationType != LocationType.FileSystem) continue;
+                    var resolved = ResolveItemForMediaInfo(item, seriesEpisodeCache);
+                    mediaInfoCache[item.InternalId] = ExtractMediaInfo(resolved);
+                }
+            }
+
+            string tagName = tagConfig.Tag.Trim();
+            string cName = string.IsNullOrWhiteSpace(tagConfig.CollectionName) ? tagName : tagConfig.CollectionName.Trim();
+            int effectiveLimit = tagConfig.Limit <= 0 ? 10000 : tagConfig.Limit;
+            var blacklist = new HashSet<string>(tagConfig.Blacklist ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
+            var matchedLocalItems = new List<BaseItem>();
+
+            try
+            {
+                var fetcher = new ListFetcher(_httpClient, _jsonSerializer);
+
+                if (string.IsNullOrEmpty(tagConfig.SourceType) || tagConfig.SourceType == "External")
+                {
+                    var items = await fetcher.FetchItems(tagConfig.Url, effectiveLimit, config.TraktClientId, config.MdblistApiKey, cancellationToken);
+                    if (items.Count > effectiveLimit) items = items.Take(effectiveLimit).ToList();
+                    foreach (var extItem in items)
+                    {
+                        if (string.IsNullOrEmpty(extItem.Imdb)) continue;
+                        if (blacklist.Contains(extItem.Imdb)) continue;
+                        if (tagConfig.EnableTag && !tagConfig.OnlyCollection)
+                            TagCacheManager.Instance.AddToCache($"imdb_{extItem.Imdb}", tagName);
+                        if (imdbLookup.TryGetValue(extItem.Imdb, out var localItems))
+                            foreach (var localItem in localItems)
+                                if (!matchedLocalItems.Contains(localItem)) matchedLocalItems.Add(localItem);
+                    }
+                }
+                else if (tagConfig.SourceType == "LocalCollection" || tagConfig.SourceType == "LocalPlaylist")
+                {
+                    if (!string.IsNullOrEmpty(tagConfig.LocalSourceId))
+                    {
+                        string[] folderTypes = tagConfig.SourceType == "LocalPlaylist" ? new[] { "Playlist" } : new[] { "BoxSet" };
+                        var allFolders = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = folderTypes, Recursive = true });
+                        var localSourceFolder = allFolders.FirstOrDefault(i => string.Equals(i.Name, tagConfig.LocalSourceId, StringComparison.OrdinalIgnoreCase));
+                        if (localSourceFolder != null)
+                        {
+                            var children = tagConfig.SourceType == "LocalCollection"
+                                ? _libraryManager.GetItemList(new InternalItemsQuery { CollectionIds = new[] { localSourceFolder.InternalId }, IsVirtualItem = false }).ToList()
+                                : _libraryManager.GetItemList(new InternalItemsQuery { ListIds = new[] { localSourceFolder.InternalId } }).ToList();
+                            foreach (var child in children)
+                            {
+                                if (child == null) continue;
+                                BaseItem itemToTag = child;
+                                if (child.GetType().Name.Contains("PlaylistItem")) { try { var inner = ((dynamic)child).Item; if (inner != null) itemToTag = inner; } catch { } }
+                                if (itemToTag.GetType().Name.Contains("Episode")) { try { var series = ((dynamic)itemToTag).Series; if (series != null) itemToTag = series; } catch { } }
+                                if (!itemToTag.GetType().Name.Contains("Movie") && !itemToTag.GetType().Name.Contains("Series")) continue;
+                                var imdb = itemToTag.GetProviderId("Imdb");
+                                if (!string.IsNullOrEmpty(imdb) && blacklist.Contains(imdb)) continue;
+                                if (!matchedLocalItems.Contains(itemToTag)) matchedLocalItems.Add(itemToTag);
+                            }
+                            if (effectiveLimit < 10000 && matchedLocalItems.Count > effectiveLimit)
+                                matchedLocalItems = matchedLocalItems.Take(effectiveLimit).ToList();
+                        }
+                        else return (false, $"Source '{tagConfig.LocalSourceId}' not found");
+                    }
+                }
+                else if (tagConfig.SourceType == "MediaInfo")
+                {
+                    foreach (var item in allItems)
+                    {
+                        if (item.LocationType != LocationType.FileSystem) continue;
+                        var imdb = item.GetProviderId("Imdb");
+                        if (!string.IsNullOrEmpty(imdb) && blacklist.Contains(imdb)) continue;
+                        CachedMediaInfo? ci = mediaInfoCache.TryGetValue(item.InternalId, out var ciVal) ? ciVal : (CachedMediaInfo?)null;
+                        if (ItemMatchesMediaInfo(item, tagConfig, debug, seriesEpisodeCache, personCache, userDataCache, ci, preloadedUsers, seriesLastPlayedCache))
+                        {
+                            matchedLocalItems.Add(item);
+                            if (effectiveLimit < 10000 && matchedLocalItems.Count >= effectiveLimit) break;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogSummary($"Error: {ex.Message}", "Error");
+                LastRunStatus = $"Failed: {ex.Message}";
+                return (false, $"Error: {ex.Message}");
+            }
+
+            // Apply tags (scoped to this entry's tag only)
+            int tagsAdded = 0, tagsRemoved = 0;
+            var matchedIds = new HashSet<Guid>(matchedLocalItems.Select(i => i.Id));
+            int updateCount = 0;
+            foreach (var item in allItems)
+            {
+                var existingTags = new HashSet<string>(item.Tags, StringComparer.OrdinalIgnoreCase);
+                bool shouldHave = tagConfig.EnableTag && !tagConfig.OnlyCollection && matchedIds.Contains(item.Id);
+                bool hasTag = existingTags.Contains(tagName);
+                if (shouldHave == hasTag) continue;
+                if (!dryRun)
+                {
+                    if (shouldHave) item.AddTag(tagName); else item.RemoveTag(tagName);
+                    try { _libraryManager.UpdateItem(item, item.Parent, ItemUpdateType.MetadataEdit, null); }
+                    catch { }
+                    if (++updateCount % 25 == 0) await Task.Yield();
+                }
+                if (shouldHave) tagsAdded++; else tagsRemoved++;
+            }
+
+            // Apply collection (scoped to this entry's collection only)
+            int collResult = 0;
+            if (tagConfig.EnableCollection && matchedLocalItems.Count > 0 && !dryRun)
+            {
+                try
+                {
+                    var desiredIds = matchedIds.Select(id => allItems.FirstOrDefault(i => i.Id == id)?.InternalId ?? 0).Where(id => id != 0).ToHashSet();
+                    var existingColl = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { "BoxSet" }, Name = cName, Recursive = true }).FirstOrDefault();
+                    if (existingColl == null)
+                    {
+                        await _collectionManager.CreateCollection(new CollectionCreationOptions { Name = cName, IsLocked = false, ItemIdList = desiredIds.ToArray() });
+                        collResult = 1;
+                    }
+                    else
+                    {
+                        var currentMembers = _libraryManager.GetItemList(new InternalItemsQuery { CollectionIds = new[] { existingColl.InternalId }, Recursive = true, IsVirtualItem = false }).Select(i => i.InternalId).ToHashSet();
+                        var toAdd = desiredIds.Where(id => !currentMembers.Contains(id)).ToList();
+                        var toRemove = currentMembers.Where(id => !desiredIds.Contains(id)).ToList();
+                        if (toAdd.Count > 0) await _collectionManager.AddToCollection(existingColl.InternalId, toAdd.ToArray());
+                        if (toRemove.Count > 0 && existingColl is BoxSet boxSet) _collectionManager.RemoveFromCollection(boxSet, toRemove.ToArray());
+                        collResult = toAdd.Count + toRemove.Count;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogSummary($"Collection error: {ex.Message}", "Warn");
+                    LastRunStatus = $"Success ({DateTime.Now:HH:mm})";
+                    return (true, $"{matchedLocalItems.Count} matched, {tagsAdded}↑ {tagsRemoved}↓ tags — collection error: {ex.Message}");
+                }
+            }
+
+            var parts = new List<string> { $"{matchedLocalItems.Count} matched" };
+            if (tagsAdded > 0 || tagsRemoved > 0) parts.Add($"{tagsAdded}↑ {tagsRemoved}↓ tags");
+            if (collResult > 0) parts.Add("collection updated");
+            if (dryRun) parts.Add("(dry run)");
+            var summary = string.Join(", ", parts);
+            LogSummary($"Done: {summary}");
+            LastRunStatus = $"Success ({DateTime.Now:HH:mm})";
+            return (true, summary);
         }
 
         private void ManageHomeSections(PluginConfiguration config, CancellationToken cancellationToken, bool debug = false)

@@ -68,6 +68,18 @@ namespace HomeScreenCompanion
         public bool IsRunning { get; set; }
     }
 
+    [Route("/HomeScreenCompanion/RunEntry", "POST")]
+    public class RunEntryRequest : IReturn<RunEntryResponse>
+    {
+        public string EntryName { get; set; } = "";
+    }
+
+    public class RunEntryResponse
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; } = "";
+    }
+
     [Route("/HomeScreenCompanion/Hsc/Status", "GET")]
     public class HscGetStatusRequest : IReturn<HscSyncStatusResponse> { }
 
@@ -221,6 +233,17 @@ public class HomeScreenCompanionService : IService
             {
                 return new TestUrlResponse { Success = false, Message = $"Error: {ex.Message}" };
             }
+        }
+
+        public async Task<object> Post(RunEntryRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.EntryName))
+                return new RunEntryResponse { Success = false, Message = "No entry name provided" };
+            var task = HomeScreenCompanionTask.Instance;
+            if (task == null)
+                return new RunEntryResponse { Success = false, Message = "Task not initialized" };
+            var (success, message) = await task.RunSingleEntryAsync(request.EntryName, CancellationToken.None);
+            return new RunEntryResponse { Success = success, Message = message };
         }
 
         public object Get(HscGetStatusRequest request)

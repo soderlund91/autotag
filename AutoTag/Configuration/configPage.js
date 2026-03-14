@@ -22,13 +22,21 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         }
         var root = document.documentElement;
         if (isDark) {
-            root.style.setProperty('--plugin-popup-bg', '#2a2a2a');
-            root.style.setProperty('--plugin-popup-color', '#e8e8e8');
+            root.style.setProperty('--plugin-popup-bg',     '#2a2a2a');
+            root.style.setProperty('--plugin-popup-bg2',    '#333333');
+            root.style.setProperty('--plugin-popup-color',  '#e8e8e8');
+            root.style.setProperty('--plugin-popup-muted',  '#aaaaaa');
             root.style.setProperty('--plugin-popup-border', 'rgba(255,255,255,0.12)');
+            root.style.setProperty('--plugin-popup-hover',  'rgba(255,255,255,0.08)');
+            root.style.setProperty('--plugin-popup-badge',  'rgba(255,255,255,0.1)');
         } else {
-            root.style.setProperty('--plugin-popup-bg', '#f0f0f0');
-            root.style.setProperty('--plugin-popup-color', '#1a1a1a');
+            root.style.setProperty('--plugin-popup-bg',     '#f2f2f2');
+            root.style.setProperty('--plugin-popup-bg2',    '#e0e0e0');
+            root.style.setProperty('--plugin-popup-color',  '#1a1a1a');
+            root.style.setProperty('--plugin-popup-muted',  '#555555');
             root.style.setProperty('--plugin-popup-border', 'rgba(0,0,0,0.15)');
+            root.style.setProperty('--plugin-popup-hover',  'rgba(0,0,0,0.08)');
+            root.style.setProperty('--plugin-popup-badge',  'rgba(0,0,0,0.1)');
         }
     }
 
@@ -1323,7 +1331,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     </div>
                 </div>
 
-                <div style="text-align:right; margin-top:20px; border-top:1px solid var(--line-color); padding-top:10px;"><button is="emby-button" type="button" class="raised btnRemoveGroup" style="background:#cc3333 !important; color:#fff;"><i class="md-icon" style="margin-right:5px;">delete</i>Remove Group</button></div>
+                <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-top:20px; border-top:1px solid var(--line-color); padding-top:10px;">
+                    <button is="emby-button" type="button" class="raised button-submit btnRunEntry" style="background:#0099d5 !important; color:#fff !important;"><i class="md-icon" style="margin-right:5px;">play_arrow</i><span class="btnRunEntryLabel">Run Group</span></button>
+                    <button is="emby-button" type="button" class="raised btnRemoveGroup" style="background:#cc3333 !important; color:#fff;"><i class="md-icon" style="margin-right:5px;">delete</i>Remove Group</button>
+                </div>
             </div>
         </div>`;
 
@@ -1445,13 +1456,21 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         });
 
         var chk = row.querySelector('.chkTagActive'), lblStatus = row.querySelector('.lblActiveStatus');
+        function updateRunGroupBtn() {
+            var runBtn = row.querySelector('.btnRunEntry');
+            if (!runBtn) return;
+            var active = chk.checked;
+            runBtn.disabled = !active;
+            runBtn.style.opacity = active ? '1' : '0.4';
+        }
         chk.addEventListener('change', function () {
             lblStatus.textContent = this.checked ? "Active" : "Disabled";
             lblStatus.style.color = this.checked ? "#52B54B" : "var(--theme-text-secondary)";
-
             if (this.checked) row.classList.remove('inactive');
             else row.classList.add('inactive');
+            updateRunGroupBtn();
         });
+        updateRunGroupBtn();
 
         row.querySelector('.chkEnableTag').addEventListener('change', function () {
             row.querySelector('.tag-settings').style.display = this.checked ? 'block' : 'none';
@@ -1641,6 +1660,51 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             if (e.target.closest('.btnRemoveGroup')) {
                 if (confirm("Delete this tag group?")) {
                     row.remove();
+                }
+            }
+
+            if (e.target.closest('.btnRunEntry')) {
+                var entryName = row.querySelector('.txtEntryLabel').value || row.querySelector('.txtTagName').value;
+                if (!entryName) { window.Dashboard.alert('Entry has no name or tag.'); return; }
+                var doRun = function () {
+                    var view = row.closest('#HomeScreenCompanionConfigPage');
+                    var btn = row.querySelector('.btnRunEntry');
+                    var lbl = btn.querySelector('.btnRunEntryLabel');
+                    var btnSaveEl = view ? view.querySelector('.btn-save') : null;
+                    var dotEl = view ? view.querySelector('#dotStatus') : null;
+                    var labelEl = view ? view.querySelector('#lastRunStatusLabel') : null;
+                    // Enter running state
+                    lbl.textContent = 'Running…';
+                    btn.disabled = true;
+                    if (btnSaveEl) { btnSaveEl.disabled = true; btnSaveEl.style.opacity = '0.5'; btnSaveEl.querySelector('span').textContent = 'Sync in progress...'; }
+                    if (dotEl) { dotEl.className = 'status-dot running'; }
+                    if (labelEl) labelEl.textContent = 'Running...';
+                    fetch(window.ApiClient.getUrl('HomeScreenCompanion/RunEntry'), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-MediaBrowser-Token': window.ApiClient.accessToken() },
+                        body: JSON.stringify({ EntryName: entryName })
+                    }).then(function (r) { return r.json(); })
+                    .then(function (result) {
+                        lbl.textContent = 'Run Group';
+                        btn.disabled = false;
+                        if (view) refreshStatus(view);
+                        window.Dashboard.alert(result.Success ? ('Done: ' + result.Message) : ('Failed: ' + result.Message));
+                    }).catch(function () {
+                        lbl.textContent = 'Run Group';
+                        btn.disabled = false;
+                        if (view) refreshStatus(view);
+                        window.Dashboard.alert('Request failed.');
+                    });
+                };
+                var _saveBtn = row.closest('#HomeScreenCompanionConfigPage') ? row.closest('#HomeScreenCompanionConfigPage').querySelector('.btn-save') : document.querySelector('.btn-save');
+                var isDirty = _saveBtn && !_saveBtn.disabled;
+                if (isDirty) {
+                    if (confirm('You have unsaved changes. Save and run?')) {
+                        _saveBtn.click();
+                        setTimeout(doRun, 800);
+                    }
+                } else {
+                    doRun();
                 }
             }
 

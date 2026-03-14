@@ -263,8 +263,8 @@
         }
 
         .step-num {
-            background: #2a2a2a;
-            color: #fff;
+            background: var(--plugin-popup-bg2, #333);
+            color: var(--plugin-popup-color, #e8e8e8);
             border: 2px solid #52B54B;
             width: 32px;
             height: 32px;
@@ -275,11 +275,11 @@
             font-weight: bold;
             flex-shrink: 0;
             font-size: 1.1em;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
 
         .step-text {
-            color: #dddddd;
+            color: var(--plugin-popup-color, #e8e8e8);
             font-size: 1em;
             line-height: 1.6;
         }
@@ -291,17 +291,17 @@
         }
 
             .help-link:hover {
-                color: #6ee066;
-                border-bottom: 1px solid #6ee066;
+                color: #3a9c34;
+                border-bottom: 1px solid #3a9c34;
             }
 
         .info-box {
             margin-top: 8px;
             padding: 12px;
-            background: #252525;
+            background: var(--plugin-popup-bg2, #333);
             border-radius: 6px;
             font-size: 0.9em;
-            border: 1px solid #333;
+            border: 1px solid var(--plugin-popup-border, rgba(255,255,255,0.12));
         }
 
         .inspiration-container {
@@ -631,9 +631,9 @@
         }
 
         .run-dial-item {
-            background: var(--theme-background-level2, Canvas);
-            color: var(--theme-text-primary, CanvasText);
-            border: 1px solid var(--line-color, rgba(128,128,128,0.3));
+            background: var(--plugin-popup-bg, #2a2a2a);
+            color: var(--plugin-popup-color, #e8e8e8);
+            border: 1px solid var(--plugin-popup-border, rgba(255,255,255,0.12));
             border-radius: 20px;
             padding: 8px 16px;
             cursor: pointer;
@@ -647,7 +647,7 @@
         }
 
         .run-dial-item:hover {
-            background: var(--theme-background-level3, rgba(128,128,128,0.15));
+            background: var(--plugin-popup-hover, rgba(128,128,128,0.15));
         }
 
         .run-dial-chevron {
@@ -682,12 +682,12 @@
             margin-bottom: 4px;
         }
         .src-card {
-            background: #252525;
-            border: 1px solid #333;
+            background: var(--plugin-popup-bg2, #333);
+            border: 1px solid var(--plugin-popup-border, rgba(255,255,255,0.12));
             border-radius: 8px;
             padding: 12px 13px;
             font-size: 0.88em;
-            color: #bbb;
+            color: var(--plugin-popup-muted, #aaa);
             line-height: 1.5;
         }
         .src-card-title {
@@ -695,7 +695,7 @@
             align-items: center;
             gap: 6px;
             font-weight: bold;
-            color: #eee;
+            color: var(--plugin-popup-color, #e8e8e8);
             margin-bottom: 6px;
         }
         .help-feature-row {
@@ -704,7 +704,7 @@
             align-items: flex-start;
             margin-bottom: 9px;
             font-size: 0.92em;
-            color: #ccc;
+            color: var(--plugin-popup-color, #e8e8e8);
             line-height: 1.5;
         }
         .help-feat-icon {
@@ -721,12 +721,12 @@
             margin-bottom: 4px;
         }
         .mi-help-col {
-            background: #252525;
-            border: 1px solid #333;
+            background: var(--plugin-popup-bg2, #333);
+            border: 1px solid var(--plugin-popup-border, rgba(255,255,255,0.12));
             border-radius: 8px;
             padding: 11px 13px;
             font-size: 0.88em;
-            color: #bbb;
+            color: var(--plugin-popup-muted, #aaa);
             line-height: 1.5;
         }
         .mi-help-category {
@@ -739,10 +739,95 @@
         }
         @media (max-width: 600px) {
             .src-cards, .mi-help-grid { grid-template-columns: 1fr; }
+            .ex-row { grid-template-columns: 1fr; }
+        }
+        .ex-table {
+            border: 1px solid var(--plugin-popup-border, rgba(255,255,255,0.12));
+            border-radius: 8px;
+            overflow: hidden;
+            font-size: 0.88em;
+        }
+        .ex-row {
+            display: grid;
+            grid-template-columns: 1fr 1.4fr;
+            border-bottom: 1px solid var(--plugin-popup-border, rgba(255,255,255,0.12));
+        }
+        .ex-header {
+            background: var(--plugin-popup-bg2, #333);
+            font-size: 0.8em;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--plugin-popup-muted, #aaa);
+        }
+        .ex-col-title, .ex-col-rules {
+            padding: 10px 12px;
+        }
+        .ex-col-title {
+            border-right: 1px solid var(--plugin-popup-border, rgba(255,255,255,0.12));
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        .ex-col-title b {
+            color: var(--plugin-popup-color, #e8e8e8);
+            font-size: 1em;
+        }
+        .ex-desc {
+            color: var(--plugin-popup-muted, #aaa);
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+        .ex-badge {
+            display: inline-block;
+            border-radius: 3px;
+            padding: 1px 6px;
+            font-size: 0.78em;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            width: fit-content;
+            margin-bottom: 2px;
+        }
+        .ex-easy   { background: rgba(82,181,75,0.2);  color: #52b54b; }
+        .ex-medium { background: rgba(0,164,220,0.2);  color: #00a4dc; }
+        .ex-hard   { background: rgba(220,120,0,0.2);  color: #dc7800; }
+        .ex-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .ex-group:last-child { margin-bottom: 0; }
+        .ex-op {
+            font-size: 0.78em;
+            font-weight: bold;
+            color: var(--plugin-popup-muted, #aaa);
+            margin-right: 2px;
+            white-space: nowrap;
+        }
+        .ex-group code {
+            background: var(--plugin-popup-badge, rgba(128,128,128,0.15));
+            color: var(--plugin-popup-color, #e8e8e8);
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-size: 0.9em;
+            white-space: nowrap;
+        }
+        .ex-group-connector {
+            font-size: 0.75em;
+            font-weight: bold;
+            color: var(--plugin-popup-muted, #aaa);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 2px 0;
+            padding-left: 2px;
         }
         .mi-help-prop {
             display: inline-block;
-            background: rgba(255,255,255,0.08);
+            background: var(--plugin-popup-badge, rgba(128,128,128,0.15));
+            color: var(--plugin-popup-color, #e8e8e8);
             border-radius: 4px;
             padding: 1px 7px;
             font-family: monospace;
@@ -1215,9 +1300,121 @@
                 <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">File Size</span> — in MB</div></div>
 
                 <div class="help-section"><i class="md-icon help-section-icon">history</i>Activity</div>
-                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Watched / Unwatched</span> — filter by play status per user</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Watched / Unwatched</span> — filter by play status. Choose the user scope below.</div></div>
                 <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Last Played</span> — days since last watched (e.g. <i>&lt;= 7</i> = watched in last week)</div></div>
                 <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Play Count</span> — number of times watched</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">group</i><div><span class="mi-help-prop">Any User</span> — matches if <b>at least one</b> user in the library satisfies the condition. Example: <i>Watched = Any User</i> matches items that <em>someone</em> has seen.</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">groups</i><div><span class="mi-help-prop">All Users</span> — matches only if <b>every</b> user in the library satisfies the condition. Example: <i>Watched = All Users</i> matches items that <em>everybody</em> has seen. <i>NOT Watched = All Users</i> matches items that nobody has seen.</div></div>
+                <div class="help-feature-row" style="margin-bottom:0;"><i class="md-icon help-feat-icon">person</i><div><span class="mi-help-prop">Specific user</span> — scopes the condition to one named user only. Useful when different household members have different watch habits.</div></div>
+
+                <div class="help-section"><i class="md-icon help-section-icon">lightbulb</i>Examples</div>
+
+                <div class="ex-table">
+                    <div class="ex-row ex-header">
+                        <div class="ex-col-title">Name &amp; description</div>
+                        <div class="ex-col-rules">Filter rules</div>
+                    </div>
+
+                    <div class="ex-row">
+                        <div class="ex-col-title">
+                            <span class="ex-badge ex-easy">Simple</span>
+                            <b>New arrivals</b>
+                            <span class="ex-desc">Everything added in the last 30 days</span>
+                        </div>
+                        <div class="ex-col-rules">
+                            <div class="ex-group">
+                                <span class="ex-op">Group 1 · AND</span>
+                                <code>Date Added &lt;= 30</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ex-row">
+                        <div class="ex-col-title">
+                            <span class="ex-badge ex-easy">Simple</span>
+                            <b>Top-rated movies</b>
+                            <span class="ex-desc">Movies rated 8.0 or higher</span>
+                        </div>
+                        <div class="ex-col-rules">
+                            <div class="ex-group">
+                                <span class="ex-op">Group 1 · AND</span>
+                                <code>Media Type = Movie</code>
+                                <code>Community Rating &gt;= 8</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ex-row">
+                        <div class="ex-col-title">
+                            <span class="ex-badge ex-easy">Simple</span>
+                            <b>4K Atmos library</b>
+                            <span class="ex-desc">4K content with Atmos audio</span>
+                        </div>
+                        <div class="ex-col-rules">
+                            <div class="ex-group">
+                                <span class="ex-op">Group 1 · AND</span>
+                                <code>Resolution = 4K</code>
+                                <code>Audio Format = Atmos</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ex-row">
+                        <div class="ex-col-title">
+                            <span class="ex-badge ex-medium">Medium</span>
+                            <b>Unseen by everyone</b>
+                            <span class="ex-desc">No user in the library has watched it</span>
+                        </div>
+                        <div class="ex-col-rules">
+                            <div class="ex-group">
+                                <span class="ex-op">Group 1 · AND</span>
+                                <code>NOT Watched = All Users</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ex-row">
+                        <div class="ex-col-title">
+                            <span class="ex-badge ex-medium">Medium</span>
+                            <b>Recent sci-fi or action</b>
+                            <span class="ex-desc">Movies from 2020+ in either genre</span>
+                        </div>
+                        <div class="ex-col-rules">
+                            <div class="ex-group">
+                                <span class="ex-op">Group 1 · OR</span>
+                                <code>Genre = Sci-Fi</code>
+                                <code>Genre = Action</code>
+                            </div>
+                            <div class="ex-group-connector">AND</div>
+                            <div class="ex-group">
+                                <span class="ex-op">Group 2 · AND</span>
+                                <code>Year &gt;= 2020</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ex-row" style="border-bottom:none;">
+                        <div class="ex-col-title">
+                            <span class="ex-badge ex-hard">Advanced</span>
+                            <b>Binge candidates</b>
+                            <span class="ex-desc">Rated series added this year that someone started but nobody finished</span>
+                        </div>
+                        <div class="ex-col-rules">
+                            <div class="ex-group">
+                                <span class="ex-op">Group 1 · AND</span>
+                                <code>Media Type = Series</code>
+                                <code>Community Rating &gt;= 7.5</code>
+                                <code>Date Added &lt;= 365</code>
+                            </div>
+                            <div class="ex-group-connector">AND</div>
+                            <div class="ex-group">
+                                <span class="ex-op">Group 2 · AND</span>
+                                <code>Watched = Any User</code>
+                                <code>NOT Watched = All Users</code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <div style="text-align:right;margin-top:24px;padding-top:16px;border-top:1px solid var(--line-color,rgba(128,128,128,0.3));">
                     <button is="emby-button" type="button" id="btnCloseMiHelp" class="raised button-submit" style="background:#00a4dc;color:white;padding:0 25px;">Got it</button>
