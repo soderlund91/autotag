@@ -944,7 +944,7 @@
             <div id="tabHomeCompanion" class="page-tab-content" style="display:none;">
                 <div class="hsc-sub-tab-nav">
                     <button class="hsc-sub-tab-btn active" data-hsc-tab="manage">Manage</button>
-                    <button class="hsc-sub-tab-btn" data-hsc-tab="copy">Copy</button>
+                    <button class="hsc-sub-tab-btn" data-hsc-tab="copy">Copy &amp; Sync</button>
                 </div>
                 <div id="hscSubTabManage" class="hsc-sub-tab-content verticalSection">
                     <div id="hscManageContainer"></div>
@@ -1200,18 +1200,18 @@
                     <i class="md-icon help-section-icon">home</i>
                     <span>Home Screen Companion</span>
                 </div>
-                <div class="step-text" style="margin-bottom:10px; font-size:0.92em;">The <strong>Home Screen</strong> tab has two sub-sections: <strong>Manage</strong> and <strong>Copy</strong>.</div>
+                <div class="step-text" style="margin-bottom:10px; font-size:0.92em;">The <strong>Home Screen</strong> tab has two sub-sections: <strong>Manage</strong> and <strong>Copy &amp; Sync</strong>.</div>
                 <div class="help-feature-row">
                     <i class="md-icon help-feat-icon">view_list</i>
                     <div><strong>Manage</strong> — Create and maintain custom home screen sections. Each section is linked to a source and automatically kept up to date for the selected users when sync runs. Configure per-source home sections from the <em>Home Screen</em> tab inside each source card.</div>
                 </div>
                 <div class="help-feature-row">
                     <i class="md-icon help-feat-icon">copy_all</i>
-                    <div><strong>Copy</strong> — Copy the entire home screen layout from a source user to one or more target users. Useful for keeping multiple profiles identical. Runs independently from the tag and collection sync.</div>
+                    <div><strong>Copy &amp; Sync</strong> — Copy the entire home screen layout from a source user to one or more target users. Useful for keeping multiple profiles identical. Runs independently from the tag and collection sync.</div>
                 </div>
                 <div class="help-feature-row" style="margin-bottom:0;">
                     <i class="md-icon help-feat-icon">sync</i>
-                    <div><strong>Automatic &amp; Manual</strong> — Both Manage and Copy operations can run automatically as part of the scheduled task, or be triggered manually using the <strong>Run</strong> button → <em>Sync home screen only</em>.</div>
+                    <div><strong>Automatic &amp; Manual</strong> — Both Manage and Copy &amp; Sync operations can run automatically as part of the scheduled task, or be triggered manually using the <strong>Run</strong> button → <em>Sync home screen only</em>.</div>
                 </div>
 
                 <!-- 8. SETTINGS & UTILITIES (new) -->
@@ -1280,10 +1280,10 @@
                 <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Audio Language</span> — matches if the file contains a track in the specified language (e.g. <i>swe</i>, <i>eng</i>)</div></div>
 
                 <div class="help-section"><i class="md-icon help-section-icon">local_movies</i>Content</div>
-                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Media Type</span> — Movie or Series</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Media Type</span> — Movie, Series, or Episode. When <b>Episode</b> is selected, all filters evaluate against individual episodes and tags are applied directly to each matching episode.</div></div>
                 <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Tag</span> — matches items that already have a specific Emby tag applied</div></div>
-                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Title</span> — matches movie or series name (not episode titles)</div></div>
-                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Title (Episode)</span> — for series: matches if any episode has this title; for episodes: matches directly</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Title</span> — matches the movie or series name. When Media Type = Episode, matches the parent series name.</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Title (Episode)</span> — matches the episode's own title. Use together with Media Type = Episode.</div></div>
                 <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Overview</span> — searches the plot description/summary for keywords or phrases</div></div>
                 <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Studio</span> — production studio name</div></div>
                 <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Genre</span> — e.g. Action, Drama, Comedy</div></div>

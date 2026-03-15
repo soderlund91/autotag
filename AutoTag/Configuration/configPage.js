@@ -744,7 +744,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         HDR:        [['HDR', 'HDR (any)'], ['DolbyVision', 'Dolby Vision'], ['HDR10', 'HDR10']],
         AudioFormat: [['Atmos', 'Dolby Atmos'], ['TrueHD', 'Dolby TrueHD'], ['DtsHdMa', 'DTS-HD MA'], ['DTS', 'DTS'], ['AC3', 'Dolby Digital / AC3'], ['AAC', 'AAC']],
         AudioChannels: [['7.1', '7.1+ Surround'], ['5.1', '5.1 Surround'], ['Stereo', 'Stereo'], ['Mono', 'Mono']],
-        MediaType: [['Movie', 'Movie'], ['Series', 'Show / Series']],
+        MediaType: [['Movie', 'Movie'], ['Series', 'Show / Series'], ['Episode', 'Episode']],
         IsPlayed: [['Watched', 'Watched'], ['Unwatched', 'Unwatched']]
     };
     var MI_NUMERIC_PROPS = ['CommunityRating', 'Year', 'Runtime', 'DateAdded', 'DateModified', 'FileSize', 'LastPlayed', 'PlayCount'];
@@ -1192,7 +1192,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                             <button type="button" is="emby-button" class="btnMiHelp raised" style="margin-left:auto; background:transparent; border:1px solid rgba(128,128,128,0.35); color:var(--theme-text-secondary); font-size:0.82em; padding:0 10px; min-width:0;"><i class="md-icon" style="font-size:1em; margin-right:4px;">help_outline</i><span>How to (filter guide)</span></button>
                         </div>
                         <div class="mediainfo-filter-list">${filterGroupsHtml}</div>
-                        <button type="button" is="emby-button" class="btnAddMediaInfoFilter raised" style="width:100%; background:transparent; border:2px dashed rgba(128,128,128,0.4); color:var(--theme-text-secondary); margin-top:8px;"><i class="md-icon" style="margin-right:5px;">add</i>Add Filter</button>
+                        <div style="display:flex; gap:8px; margin-top:8px;">
+                            <button type="button" is="emby-button" class="btnAddMediaInfoFilter raised" style="flex:1; background:transparent; border:2px dashed rgba(128,128,128,0.4); color:var(--theme-text-secondary);"><i class="md-icon" style="margin-right:5px;">add</i>Add Filter</button>
+                            <button type="button" is="emby-button" class="btnClearAllFilters raised" style="background:transparent; border:2px dashed rgba(204,51,51,0.4); color:#cc3333; padding:0 14px; min-width:0;" title="Clear all filters"><i class="md-icon" style="font-size:1em;">delete_sweep</i></button>
+                        </div>
                         <div style="margin-top:30px; border-top:1px solid var(--line-color); padding-top:12px;">
                             <button type="button" is="emby-button" class="btnPremadeFilters raised btn-neutral" style="width:100%; margin-bottom:6px; background:transparent; border:1px solid var(--line-color); color:var(--theme-text-secondary); display:flex; align-items:center; justify-content:space-between;"><span><i class="md-icon" style="margin-right:5px;">auto_awesome</i>Premade filters</span><i class="md-icon mi-expand-icon" style="transition:transform 0.2s; font-size:1.2em;">expand_more</i></button>
                             <div class="mi-preset-panel" style="display:none; border:1px solid var(--line-color); border-radius:6px; padding:10px 12px; margin-bottom:8px; background:rgba(128,128,128,0.06);">
@@ -1596,6 +1599,11 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 list.insertAdjacentHTML('beforeend', getMediaInfoFilterGroupHtml({ Operator: 'AND', Criteria: [], GroupOperator: 'AND' }, idx, false));
             }
 
+            if (e.target.closest('.btnClearAllFilters')) {
+                var list = row.querySelector('.mediainfo-filter-list');
+                if (list) { list.innerHTML = ''; }
+            }
+
             if (e.target.closest('.btnRemoveFilterGroup')) {
                 e.target.closest('.mediainfo-filter-group').remove();
                 var miList = row.querySelector('.mediainfo-filter-list');
@@ -1945,7 +1953,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 }
                 var allLogs = [];
                 (result.Logs || []).forEach(function (l) {
-                    allLogs.push({ t: getLogTime(l), text: l.replace(/^(\[\d{2}:\d{2}:\d{2}\]) /, '$1 [TAG] ') });
+                    allLogs.push({ t: getLogTime(l), text: l.replace(/^(\[\d{2}:\d{2}:\d{2}\]) /, '$1 [HSC] ') });
                 });
                 (hscResult && hscResult.Logs || []).forEach(function (l) {
                     allLogs.push({ t: getLogTime(l), text: l.replace(/^(\[\d{2}:\d{2}:\d{2}\]) /, '$1 [Home Screen] ') });
@@ -2850,7 +2858,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             form.addEventListener('click', (e) => {
                 var dayBtn = e.target.closest('.day-toggle');
                 if (dayBtn) dayBtn.classList.toggle('active');
-                if (e.target.closest('.btnRemoveUrl, .btnAddUrl, .btnRemoveLocal, .btnAddLocal, .btnRemoveDate, .btnAddDate, .btnRemoveFilterGroup, .btnAddMediaInfoFilter, .btnGroupOpChoice, .btnGroupInnerOpChoice, .btnAddMiRule, .btnRemoveMiRule, .btnRemoveGroup, .day-toggle, .btnRemovePoster, .btnApplyMiPreset')) {
+                if (e.target.closest('.btnRemoveUrl, .btnAddUrl, .btnRemoveLocal, .btnAddLocal, .btnRemoveDate, .btnAddDate, .btnRemoveFilterGroup, .btnAddMediaInfoFilter, .btnClearAllFilters, .btnGroupOpChoice, .btnGroupInnerOpChoice, .btnAddMiRule, .btnRemoveMiRule, .btnRemoveGroup, .day-toggle, .btnRemovePoster, .btnApplyMiPreset')) {
                     changeHandler();
                 }
             }, { signal: _signal });
