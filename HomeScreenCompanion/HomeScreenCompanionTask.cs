@@ -998,8 +998,20 @@ namespace HomeScreenCompanion
                 }
                 else if (tagConfig.SourceType == "MediaInfo")
                 {
-                    _listCount = allItems.Count;
-                    foreach (var item in allItems)
+                    IList<BaseItem> _itemsToScan;
+                    if (TagConfigTargetsEpisodes(tagConfig))
+                    {
+                        var _epQuery = new InternalItemsQuery { IncludeItemTypes = new[] { "Episode" }, Recursive = true, IsVirtualItem = false };
+                        var _tc = ExtractTitleContains(tagConfig);
+                        if (!string.IsNullOrEmpty(_tc)) _epQuery.NameContains = _tc;
+                        _itemsToScan = _libraryManager.GetItemList(_epQuery).ToList();
+                    }
+                    else
+                    {
+                        _itemsToScan = allItems;
+                    }
+                    _listCount = _itemsToScan.Count;
+                    foreach (var item in _itemsToScan)
                     {
                         if (item.LocationType != LocationType.FileSystem) continue;
                         var imdb = item.GetProviderId("Imdb");
@@ -1694,6 +1706,20 @@ namespace HomeScreenCompanion
             string mediaType = item.GetType().Name;
             string[] itemTags = item.Tags ?? Array.Empty<string>();
 
+            // When EpisodeIncludeSeries: inherit parent series' tags so Tag criteria can match series-level tags
+            if (item.GetType().Name.Contains("Episode") && TagConfigIncludesParentSeries(tagConfig))
+            {
+                try
+                {
+                    var parentSeries = ((dynamic)item).Series as BaseItem;
+                    if (parentSeries?.Tags != null && parentSeries.Tags.Length > 0)
+                        itemTags = itemTags.Concat(parentSeries.Tags)
+                                           .Distinct(StringComparer.OrdinalIgnoreCase)
+                                           .ToArray();
+                }
+                catch { }
+            }
+
             if (hasFilters)
             {
                 bool EvalCrit(string c) => EvaluateCriterion(c, itemToCheck, is4k, is1080, is720, is8k, isSd,
@@ -1764,7 +1790,9 @@ namespace HomeScreenCompanion
                     "Overview"      => item.Overview?.IndexOf(val, StringComparison.OrdinalIgnoreCase) >= 0,
                     "ContentRating" => string.Equals(item.OfficialRating, val, StringComparison.OrdinalIgnoreCase),
                     "AudioLanguage" => audioLanguages != null && audioLanguages.Contains(val),
-                    "MediaType"     => string.Equals(mediaType, val, StringComparison.OrdinalIgnoreCase),
+                    "MediaType"     => val.Equals("EpisodeIncludeSeries", StringComparison.OrdinalIgnoreCase)
+                                        ? item.GetType().Name.Contains("Episode")
+                                        : string.Equals(mediaType, val, StringComparison.OrdinalIgnoreCase),
                     "Tag"           => itemTags != null && MatchesAny(itemTags, val),
                     "ImdbId"        => MatchesImdbId(item.GetProviderId("Imdb"), val),
                     _ => false
@@ -1978,6 +2006,10 @@ namespace HomeScreenCompanion
             return GetAllCriteria(tagConfig).Any(c =>
                 c.TrimStart('!').StartsWith("MediaType:Episode", StringComparison.OrdinalIgnoreCase));
         }
+
+        private static bool TagConfigIncludesParentSeries(TagConfig tagConfig) =>
+            GetAllCriteria(tagConfig).Any(c =>
+                c.TrimStart('!').Equals("MediaType:EpisodeIncludeSeries", StringComparison.OrdinalIgnoreCase));
 
         private static string? ExtractTitleContains(TagConfig tagConfig)
         {

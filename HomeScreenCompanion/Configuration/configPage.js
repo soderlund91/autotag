@@ -638,6 +638,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 var userId = selUser ? selUser.value : '';
                 var finalOp = op2 || textMatchOp;
                 var finalVal = op2 ? num : val;
+                if (prop === 'MediaType' && finalVal === 'Episode') {
+                    var chkIps = rule.querySelector('.chkIncludeParentSeries');
+                    if (chkIps && chkIps.checked) finalVal = 'EpisodeIncludeSeries';
+                }
                 var notBtn = rule.querySelector('.btnNotToggle');
                 var isNot = notBtn && notBtn.dataset.not === '1';
                 var crit = buildCriterion(prop, finalOp, finalVal, userId);
@@ -843,6 +847,17 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             return tagTextOpHtml + '<input class="txtMiValue" is="emby-input" type="text" placeholder="e.g. 4K" value="' + (savedVal || '').replace(/"/g, '&quot;') + '" style="flex:1;" />';
         }
         if (MI_DROPDOWN_OPTIONS[prop]) {
+            if (prop === 'MediaType') {
+                var dispVal = (savedVal === 'EpisodeIncludeSeries') ? 'Episode' : (savedVal || '');
+                var ipsChecked = (savedVal === 'EpisodeIncludeSeries');
+                var mtOpts = MI_DROPDOWN_OPTIONS['MediaType'].map(function (pair) {
+                    return '<option value="' + pair[0] + '"' + (pair[0] === dispVal ? ' selected' : '') + '>' + pair[1] + '</option>';
+                }).join('');
+                var showCb = (dispVal === 'Episode') ? 'flex' : 'none';
+                return '<select class="selMiValue" is="emby-select" style="flex:1;">' + mtOpts + '</select>' +
+                    '<label class="mi-include-parent" style="display:' + showCb + ';align-items:center;gap:6px;white-space:nowrap;font-size:0.85em;opacity:.85;">' +
+                    '<input type="checkbox" class="chkIncludeParentSeries"' + (ipsChecked ? ' checked' : '') + '> Include parent series</label>';
+            }
             var opts = MI_DROPDOWN_OPTIONS[prop].map(function (pair) {
                 return '<option value="' + pair[0] + '"' + (pair[0] === savedVal ? ' selected' : '') + '>' + pair[1] + '</option>';
             }).join('');
@@ -989,6 +1004,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 var userId = selUser ? selUser.value : '';
                 var finalOp = op2 || textMatchOp;
                 var finalVal = op2 ? num : val;
+                if (prop === 'MediaType' && finalVal === 'Episode') {
+                    var chkIps = rule.querySelector('.chkIncludeParentSeries');
+                    if (chkIps && chkIps.checked) finalVal = 'EpisodeIncludeSeries';
+                }
                 var notBtn = rule.querySelector('.btnNotToggle');
                 var isNot = notBtn && notBtn.dataset.not === '1';
                 var crit = buildCriterion(prop, finalOp, finalVal, userId);
@@ -1431,6 +1450,16 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             if (e.target.classList.contains('selMiProperty')) {
                 var wrapper = e.target.closest('.mi-rule').querySelector('.mi-value-wrapper');
                 wrapper.innerHTML = getMiValueHtml(e.target.value, '', '');
+            }
+            if (e.target.classList.contains('selMiValue')) {
+                var miRule = e.target.closest('.mi-rule');
+                if (miRule) {
+                    var propSel = miRule.querySelector('.selMiProperty');
+                    if (propSel && propSel.value === 'MediaType') {
+                        var ipLabel = miRule.querySelector('.mi-include-parent');
+                        if (ipLabel) ipLabel.style.display = (e.target.value === 'Episode') ? 'flex' : 'none';
+                    }
+                }
             }
             if (e.target.classList.contains('selDateType')) {
                 var dateRow = e.target.closest('.date-row');
@@ -2188,6 +2217,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     var userId = selUser ? selUser.value : '';
                     var finalOp = op2 || textMatchOp;
                     var finalVal = op2 ? num : val;
+                    if (prop === 'MediaType' && finalVal === 'Episode') {
+                        var chkIps = rule.querySelector('.chkIncludeParentSeries');
+                        if (chkIps && chkIps.checked) finalVal = 'EpisodeIncludeSeries';
+                    }
                     var notBtn = rule.querySelector('.btnNotToggle');
                     var isNot = notBtn && notBtn.dataset.not === '1';
                     var crit = buildCriterion(prop, finalOp, finalVal, userId);
