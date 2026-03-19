@@ -574,16 +574,16 @@
             bottom: calc(100% + 8px);
             left: 50%;
             transform: translateX(-50%);
-            background: var(--theme-background-level3, Canvas);
-            border: 1px solid var(--line-color, rgba(128,128,128,0.3));
+            background: var(--plugin-popup-bg, #2a2a2a);
+            border: 1px solid var(--plugin-popup-border, rgba(255,255,255,0.12));
             border-radius: 7px;
             padding: 10px 14px;
             white-space: nowrap;
             z-index: 2000;
             font-size: 0.82em;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+            box-shadow: 0 4px 14px rgba(0,0,0,0.4);
             pointer-events: none;
-            color: var(--theme-text-primary, CanvasText);
+            color: var(--plugin-popup-color, #e8e8e8);
         }
 
         .mi-op-info:hover .mi-op-tooltip {
@@ -605,6 +605,27 @@
             color: #00a4dc;
             font-weight: bold;
             min-width: 28px;
+        }
+
+        .mi-op-tooltip.mi-op-tooltip-wide {
+            white-space: normal;
+            width: 380px;
+            line-height: 1.5;
+            background: var(--plugin-popup-bg, #2a2a2a) !important;
+            color: var(--plugin-popup-color, #e8e8e8) !important;
+        }
+
+        .mi-op-tooltip.mi-op-tooltip-wide p {
+            margin: 0 0 6px 0;
+        }
+
+        .mi-op-tooltip.mi-op-tooltip-wide ul {
+            margin: 4px 0 0 0;
+            padding-left: 16px;
+        }
+
+        .mi-op-tooltip.mi-op-tooltip-wide li {
+            margin-bottom: 3px;
         }
 
         .run-speed-dial {
@@ -924,7 +945,7 @@
                                 <input type="checkbox" class="chkShowApiKey" data-target="txtGeminiApiKey" style="margin:0;" /> Show
                             </label>
                             <div class="fieldDescription">
-                                Used for AI created lists via Gemini (gemini-3-flash-preview). Get your key at <a href="https://aistudio.google.com/app/apikey" target="_blank" class="help-link">Google AI Studio</a>.
+                                Used for AI created lists via Google Gemini (gemini-3-flash-preview). Get your key at <a href="https://aistudio.google.com/app/apikey" target="_blank" class="help-link">Google AI Studio</a>.
                             </div>
                         </div>
                     </div>
@@ -1478,6 +1499,41 @@
 
                 <div style="text-align:right;margin-top:24px;padding-top:16px;border-top:1px solid var(--line-color,rgba(128,128,128,0.3));">
                     <button is="emby-button" type="button" id="btnCloseMiHelp" class="raised button-submit" style="background:#00a4dc;color:white;padding:0 25px;">Got it</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tagTargetHelpModalOverlay" class="modal-backdrop">
+        <div class="modal-content" style="max-width:600px; width:95%;">
+            <div class="modal-header-bar" style="background:linear-gradient(135deg,#00a4dc 0%,#007ba8 100%);">
+                <i class="md-icon modal-header-icon">label</i>
+                <div>
+                    <h2 class="modal-header-title">Tag &amp; Collection Target Level</h2>
+                    <span style="opacity:0.9;font-size:0.9em;">How Series, Season and Episode targeting works</span>
+                </div>
+            </div>
+            <div class="modal-body-scroll" style="padding:24px;">
+
+                <div class="help-section"><i class="md-icon help-section-icon">info</i>How it works</div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">layers</i><div>Controls which Emby items receive the tag or are added to the collection. Multiple levels can be selected simultaneously. If none is selected, <b>Series</b> is used as the default.</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">device_hub</i><div>The Tag and Collection targets are <b>independent</b> of each other — you can tag at Series level while adding Seasons to a collection at the same time.</div></div>
+
+                <div class="help-section"><i class="md-icon help-section-icon">tv</i>Source returns a series (e.g. Scrubs)</div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Series</span> — tags/adds Scrubs itself</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Season</span> — tags/adds all seasons of Scrubs</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Episode</span> — tags/adds all episodes of Scrubs</div></div>
+
+                <div class="help-section"><i class="md-icon help-section-icon">movie</i>Source returns a specific episode (via MediaType:Episode)</div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Series</span> — tags/adds Scrubs (the parent series)</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Season</span> — tags/adds only the season that episode belongs to</div></div>
+                <div class="help-feature-row"><i class="md-icon help-feat-icon">check_circle</i><div><span class="mi-help-prop">Episode</span> — tags/adds only that single episode</div></div>
+
+                <div class="help-section"><i class="md-icon help-section-icon">lightbulb</i>Tip</div>
+                <div class="help-feature-row" style="margin-bottom:0;"><i class="md-icon help-feat-icon">info</i><div>To target a specific episode or season, add <b>MediaType:Episode</b> in the Source filter. Without it, the source returns whole series and all levels expand from there.</div></div>
+
+                <div style="text-align:right;margin-top:24px;padding-top:16px;border-top:1px solid var(--line-color,rgba(128,128,128,0.3));">
+                    <button is="emby-button" type="button" id="btnCloseTagTargetHelp" class="raised button-submit" style="background:#00a4dc;color:white;padding:0 25px;">Got it</button>
                 </div>
             </div>
         </div>

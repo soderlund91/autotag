@@ -1411,7 +1411,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     <div class="tag-settings" style="margin-left: 20px; padding-left: 15px; border-left: 2px solid var(--line-color); margin-top: 10px; display: ${tagConfig.EnableTag !== false ? 'block' : 'none'};">
                         <div class="inputContainer" style="flex-grow:1;"><input is="emby-input" class="txtTagName" type="text" label="Tag Name" value="${tagName}" placeholder="${labelName}" /></div>
                         <div class="mi-tag-target-section" style="margin-top:14px;">
-                            <div style="font-size:0.85em; opacity:0.6; margin-bottom:6px;">For TV shows, choose what level to tag: (If none selected defaults to Series)</div>
+                            <div style="font-size:0.85em; opacity:0.6; margin-bottom:6px; display:flex; align-items:center; gap:8px;">
+                                <span>For TV shows, choose what level to tag:</span>
+                                <button type="button" is="emby-button" class="btnTagTargetHelp raised" style="background:transparent; border:1px solid rgba(128,128,128,0.35); color:var(--theme-text-secondary); font-size:0.82em; padding:0 10px; min-width:0;"><i class="md-icon" style="font-size:1em; margin-right:4px;">help_outline</i><span>How to use</span></button>
+                            </div>
                             <div style="display:flex; flex-direction:row; align-items:center; gap:20px;">
                                 <label style="display:flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap;">
                                     <input type="checkbox" is="emby-checkbox" class="chkTagTargetSeries" ${_tagTargetSer ? 'checked' : ''} />
@@ -1459,7 +1462,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                         </div>
 
                         <div class="mi-coll-target-section" style="margin-top:10px;">
-                            <div style="font-size:0.85em; opacity:0.6; margin-bottom:6px;">For TV shows, choose what level to add to collection: (If none selected defaults to Series)</div>
+                            <div style="font-size:0.85em; opacity:0.6; margin-bottom:6px; display:flex; align-items:center; gap:8px;">
+                                <span>For TV shows, choose what level to add to collection:</span>
+                                <button type="button" is="emby-button" class="btnCollTargetHelp raised" style="background:transparent; border:1px solid rgba(128,128,128,0.35); color:var(--theme-text-secondary); font-size:0.82em; padding:0 10px; min-width:0;"><i class="md-icon" style="font-size:1em; margin-right:4px;">help_outline</i><span>How to use</span></button>
+                            </div>
                             <div style="display:flex; flex-direction:row; align-items:center; gap:20px;">
                                 <label style="display:flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap;">
                                     <input type="checkbox" is="emby-checkbox" class="chkCollTargetSeries" ${_collTargetSer ? 'checked' : ''} />
@@ -1752,6 +1758,14 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
 
         row.querySelector('.btnMiHelp').addEventListener('click', () => {
             document.getElementById('miHelpModalOverlay').classList.add('modal-visible');
+        });
+
+        row.querySelector('.btnTagTargetHelp').addEventListener('click', () => {
+            document.getElementById('tagTargetHelpModalOverlay').classList.add('modal-visible');
+        });
+
+        row.querySelector('.btnCollTargetHelp').addEventListener('click', () => {
+            document.getElementById('tagTargetHelpModalOverlay').classList.add('modal-visible');
         });
 
         row.addEventListener('click', e => {
@@ -3230,6 +3244,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 var miHelpOverlay = view.querySelector('#miHelpModalOverlay');
                 view.querySelector('#btnCloseMiHelp').addEventListener('click', () => miHelpOverlay.classList.remove('modal-visible'));
                 miHelpOverlay.addEventListener('click', e => { if (e.target === miHelpOverlay) miHelpOverlay.classList.remove('modal-visible'); });
+
+                var tagTargetHelpOverlay = view.querySelector('#tagTargetHelpModalOverlay');
+                view.querySelector('#btnCloseTagTargetHelp').addEventListener('click', () => tagTargetHelpOverlay.classList.remove('modal-visible'));
+                tagTargetHelpOverlay.addEventListener('click', e => { if (e.target === tagTargetHelpOverlay) tagTargetHelpOverlay.classList.remove('modal-visible'); });
 
                 var headerAction = view.querySelector('.sectionTitleContainer');
                 if (headerAction && !view.querySelector('#cbSortTags')) {
