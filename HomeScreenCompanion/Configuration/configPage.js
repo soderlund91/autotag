@@ -121,7 +121,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             border: 1px solid rgba(76,175,80,0.35);
         }
 
-        .tag-indicator.schedule.priority-active::after {
+        .tag-indicator.schedule::after {
             content: '';
             position: absolute;
             top: -3px;
@@ -131,6 +131,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             border-radius: 50%;
             background: #f59e0b;
             box-shadow: 0 0 0 1.5px var(--theme-background, #101010);
+        }
+
+        .tag-indicator.schedule.schedule-active::after {
+            background: #52B54B;
         }
 
         .tag-indicator.tag {
@@ -871,13 +875,22 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 var mtOpts = MI_DROPDOWN_OPTIONS['MediaType'].map(function (pair) {
                     return '<option value="' + pair[0] + '"' + (pair[0] === dispVal ? ' selected' : '') + '>' + pair[1] + '</option>';
                 }).join('');
-                var includeParentChecked = (savedVal === 'EpisodeIncludeSeries') ? 'checked' : '';
+                var includeParentActive = (savedVal === 'EpisodeIncludeSeries');
                 var includeParentDisplay = (dispVal === 'Episode') ? 'flex' : 'none';
+                var ipChecked = includeParentActive ? 'checked' : '';
                 return '<div style="display:flex; flex-direction:column; gap:5px; flex:1;">' +
-                    '<div style="display:flex; flex-direction:row; align-items:center; gap:12px;">' +
+                    '<div style="display:flex; flex-direction:row; align-items:center; gap:8px;">' +
                     '<select class="selMiValue" is="emby-select" style="flex:1;">' + mtOpts + '</select>' +
-                    '<label class="mi-include-parent" style="display:' + includeParentDisplay + '; align-items:center; gap:6px; font-size:0.85em; cursor:pointer; white-space:nowrap;">' +
-                    '<input type="checkbox" is="emby-checkbox" class="chkIncludeParentSeries" ' + includeParentChecked + '> Include parent series</label>' +
+                    '<div class="mi-include-parent" style="display:' + includeParentDisplay + '; align-items:center; gap:6px;">' +
+                    '<label style="display:flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap; font-size:0.85em;">' +
+                    '<input type="checkbox" is="emby-checkbox" class="chkIncludeParentSeries" ' + ipChecked + '>' +
+                    '<span>Include parent series</span>' +
+                    '</label>' +
+                    '<div class="mi-op-info">' +
+                    '<div class="mi-op-info-icon">i</div>' +
+                    '<div class="mi-op-tooltip" style="white-space:normal; width:220px;">Filter criteria can also match properties on the parent series — e.g. find episodes whose series has a specific tag or genre.</div>' +
+                    '</div>' +
+                    '</div>' +
                     '</div>' +
                     '</div>';
             }
@@ -1095,6 +1108,54 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             });
     }
 
+    function isScheduleCurrentlyActive(intervals) {
+        if (!intervals || intervals.length === 0) return false;
+        var now = new Date();
+        var dowNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        var todayName = dowNames[now.getDay()];
+        return intervals.some(function(iv) {
+            if (iv.Type === 'Weekly') {
+                var days = (iv.DayOfWeek || '').split(',').map(function(d) { return d.trim(); });
+                return days.indexOf(todayName) >= 0;
+            }
+            if (!iv.Start || !iv.End) return false;
+            var s = new Date(iv.Start);
+            var e = new Date(iv.End);
+            if (iv.Type === 'EveryYear') {
+                var nowMD = now.getMonth() * 100 + now.getDate();
+                var sMD  = s.getMonth() * 100 + s.getDate();
+                var eMD  = e.getMonth() * 100 + e.getDate();
+                return sMD <= nowMD && nowMD <= eMD;
+            }
+            // SpecificDate
+            e.setHours(23, 59, 59, 999);
+            return s <= now && now <= e;
+        });
+    }
+
+    function readIntervalsFromRow(row) {
+        var intervals = [];
+        row.querySelectorAll('.date-row').forEach(function(dr) {
+            var type = (dr.querySelector('.selDateType') || {}).value || 'SpecificDate';
+            var s = null, e = null, days = '';
+            if (type === 'SpecificDate') {
+                s = (dr.querySelector('.txtFullStartDate') || {}).value || null;
+                e = (dr.querySelector('.txtFullEndDate') || {}).value || null;
+            } else if (type === 'EveryYear') {
+                var sM = (dr.querySelector('.selStartMonth') || {}).value || '1';
+                var sD = (dr.querySelector('.selStartDay') || {}).value || '1';
+                var eM = (dr.querySelector('.selEndMonth') || {}).value || '1';
+                var eD = (dr.querySelector('.selEndDay') || {}).value || '1';
+                s = '2000-' + sM.padStart(2, '0') + '-' + sD.padStart(2, '0');
+                e = '2000-' + eM.padStart(2, '0') + '-' + eD.padStart(2, '0');
+            } else if (type === 'Weekly') {
+                days = Array.from(dr.querySelectorAll('.day-toggle.active')).map(function(b) { return b.dataset.day; }).join(',');
+            }
+            intervals.push({ Type: type, Start: s, End: e, DayOfWeek: days });
+        });
+        return intervals;
+    }
+
     function getSourceBadgeHtml(st) {
         var map = {
             'External':        { icon: 'language',       title: 'External List' },
@@ -1135,14 +1196,20 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         var aiLimit = tagConfig.Limit || 0;
         // Backwards compat: legacy single-target → derive separate tag + collection targets
         var _legacyTarget = tagConfig.MediaInfoTargetType || (tagConfig.MediaInfoSeasonMode ? 'Season' : '');
-        // Tag output targets
+        // Tag output targets — default Series=true if no target has ever been set
+        var _tagAnySet = tagConfig.TagTargetEpisode || tagConfig.TagTargetSeason || tagConfig.TagTargetSeries ||
+                         tagConfig.MediaInfoTargetEpisode || tagConfig.MediaInfoTargetSeason || tagConfig.MediaInfoTargetSeries ||
+                         _legacyTarget !== '';
         var _tagTargetEp  = tagConfig.TagTargetEpisode  || tagConfig.MediaInfoTargetEpisode || _legacyTarget === 'Episode';
         var _tagTargetSea = tagConfig.TagTargetSeason   || tagConfig.MediaInfoTargetSeason  || _legacyTarget === 'Season';
-        var _tagTargetSer = tagConfig.TagTargetSeries   || tagConfig.MediaInfoTargetSeries  || _legacyTarget === 'Series';
-        // Collection output targets
+        var _tagTargetSer = tagConfig.TagTargetSeries   || tagConfig.MediaInfoTargetSeries  || _legacyTarget === 'Series' || !_tagAnySet;
+        // Collection output targets — default Series=true if no target has ever been set
+        var _collAnySet = tagConfig.CollectionTargetEpisode || tagConfig.CollectionTargetSeason || tagConfig.CollectionTargetSeries ||
+                          tagConfig.MediaInfoTargetEpisode || tagConfig.MediaInfoTargetSeason || tagConfig.MediaInfoTargetSeries ||
+                          _legacyTarget !== '';
         var _collTargetEp  = tagConfig.CollectionTargetEpisode || tagConfig.MediaInfoTargetEpisode || _legacyTarget === 'Episode';
         var _collTargetSea = tagConfig.CollectionTargetSeason  || tagConfig.MediaInfoTargetSeason  || _legacyTarget === 'Season';
-        var _collTargetSer = tagConfig.CollectionTargetSeries  || tagConfig.MediaInfoTargetSeries  || _legacyTarget === 'Series';
+        var _collTargetSer = tagConfig.CollectionTargetSeries  || tagConfig.MediaInfoTargetSeries  || _legacyTarget === 'Series' || !_collAnySet;
 
         var enableHomeSection = tagConfig.EnableHomeSection ? 'checked' : '';
         var homeSectionLibraryId = encodeURIComponent(tagConfig.HomeSectionLibraryId || 'auto');
@@ -1164,9 +1231,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         var sourceBadgeHtml = getSourceBadgeHtml(sourceType);
         var indicatorsHtml = '';
         if (intervals.length > 0) {
+            var schedActiveClass = isScheduleCurrentlyActive(intervals) ? ' schedule-active' : '';
             var schedPriorityClass = tagConfig.OverrideWhenActive ? ' priority-active' : '';
             var schedText = tagConfig.OverrideWhenActive ? 'Schedule priority' : 'Schedule';
-            indicatorsHtml += `<span class="tag-indicator schedule${schedPriorityClass}"><i class="md-icon" style="font-size:1.1em;">calendar_today</i> ${schedText}</span>`;
+            indicatorsHtml += `<span class="tag-indicator schedule${schedPriorityClass}${schedActiveClass}"><i class="md-icon" style="font-size:1.1em;">calendar_today</i> ${schedText}</span>`;
         }
         if (tagConfig.EnableCollection) {
             indicatorsHtml += `<span class="tag-indicator collection"><i class="md-icon" style="font-size:1.1em;">library_books</i> Collection</span>`;
@@ -1355,7 +1423,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                         <div class="inputContainer" style="flex-grow:1;"><input is="emby-input" class="txtTagName" type="text" label="Tag Name" value="${tagName}" placeholder="${labelName}" /></div>
                         <p style="margin:5px 0 0 0; font-size:0.9em; opacity:0.7;">The tag that will be applied to matched items in Emby.</p>
                         <div class="mi-tag-target-section" style="margin-top:14px; display:${sourceType === 'MediaInfo' ? 'block' : 'none'};">
-                            <div style="font-size:0.85em; opacity:0.6; margin-bottom:6px;">For TV shows, tag at level:</div>
+                            <div style="font-size:0.85em; opacity:0.6; margin-bottom:6px;">For TV shows, tag at level: (If none selected defaults to Series)</div>
                             <div style="display:flex; flex-direction:row; align-items:center; gap:20px;">
                                 <label style="display:flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap;">
                                     <input type="checkbox" is="emby-checkbox" class="chkTagTargetSeries" ${_tagTargetSer ? 'checked' : ''} />
@@ -1433,7 +1501,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                             </div>
                         </div>
                         <div class="mi-coll-target-section" style="margin-top:14px; display:${sourceType === 'MediaInfo' ? 'block' : 'none'};">
-                            <div style="font-size:0.85em; opacity:0.6; margin-bottom:6px;">For TV shows, add to collection at level:</div>
+                            <div style="font-size:0.85em; opacity:0.6; margin-bottom:6px;">For TV shows, add to collection at level: (If none selected defaults to Series)</div>
                             <div style="display:flex; flex-direction:row; align-items:center; gap:20px;">
                                 <label style="display:flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap;">
                                     <input type="checkbox" is="emby-checkbox" class="chkCollTargetSeries" ${_collTargetSer ? 'checked' : ''} />
@@ -1529,8 +1597,9 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             var html = '';
             if (hasSchedule) {
                 var schedPriorityClass = hasOverride ? ' priority-active' : '';
+                var schedActiveClass = isScheduleCurrentlyActive(readIntervalsFromRow(row)) ? ' schedule-active' : '';
                 var schedText = hasOverride ? 'Schedule priority' : 'Schedule';
-                html += `<span class="tag-indicator schedule${schedPriorityClass}"><i class="md-icon" style="font-size:1.1em;">calendar_today</i> ${schedText}</span>`;
+                html += `<span class="tag-indicator schedule${schedPriorityClass}${schedActiveClass}"><i class="md-icon" style="font-size:1.1em;">calendar_today</i> ${schedText}</span>`;
             }
             if (hasCollection) {
                 html += `<span class="tag-indicator collection"><i class="md-icon" style="font-size:1.1em;">library_books</i> Collection</span>`;
@@ -1617,6 +1686,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 var currentDay = Math.min(parseInt(daySelect.value, 10), maxDay);
                 daySelect.innerHTML = getDayOptions(currentDay, maxDay);
             }
+            setTimeout(checkFormState, 0);
         });
 
         var header = row.querySelector('.tag-header'), body = row.querySelector('.tag-body'), icon = row.querySelector('.expand-icon');
@@ -1830,6 +1900,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 btn.style.background = active ? 'rgba(200,50,50,0.75)' : 'transparent';
                 btn.style.color = active ? '#fff' : '';
                 btn.style.border = active ? '1px solid rgba(200,50,50,0.6)' : '1px solid rgba(128,128,128,0.4)';
+                setTimeout(checkFormState, 0);
+            }
+
+            if (e.target.closest('.mi-include-parent')) {
                 setTimeout(checkFormState, 0);
             }
 
