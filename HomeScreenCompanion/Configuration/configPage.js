@@ -668,7 +668,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             hseTab.querySelectorAll('[data-field]').forEach(function(el) {
                 var f = el.dataset.field;
                 var v = el.type === 'checkbox' ? String(el.checked) : el.value;
-                if (v !== '') hseSettings[f] = v;
+                hseSettings[f] = v;
             });
             var itemTypes = Array.from(hseTab.querySelectorAll('.chkHseItemType:checked')).map(function(c) { return c.value; });
             if (itemTypes.length > 0) hseSettings['ItemTypes'] = JSON.stringify(itemTypes);
@@ -2323,8 +2323,8 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
 
         var imgTypeVal = s.ImageType || '';
         html += '<div style="margin-bottom:12px;"><label class="selectLabel">Image Type</label>';
-        html += '<select is="emby-select" class="hse-field-str" data-field="ImageType" style="width:100%;"><option value="">(Default)</option>';
-        ['Primary','Backdrop','Thumb'].forEach(function(o) { html += '<option value="' + o + '"' + (imgTypeVal === o ? ' selected' : '') + '>' + o + '</option>'; });
+        html += '<select is="emby-select" class="hse-field-str" data-field="ImageType" style="width:100%;"><option value=""' + (imgTypeVal === '' ? ' selected' : '') + '>Auto</option>';
+        ['Primary','Thumb'].forEach(function(o) { html += '<option value="' + o + '"' + (imgTypeVal === o ? ' selected' : '') + '>' + o + '</option>'; });
         html += '</select></div>';
 
         var sortByVal = s.SortBy || '';
@@ -2344,18 +2344,34 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         [['Ascending','Ascending'],['Descending','Descending']].forEach(function(o) { html += '<option value="' + o[0] + '"' + (sortOrderVal === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; });
         html += '</select></div>';
 
-        var dispModeVal = s.DisplayMode || '';
+        var dispModeVal = s.ScrollDirection || '';
         html += '<div style="margin-bottom:12px;"><label class="selectLabel">Scroll Direction</label>';
-        html += '<select is="emby-select" class="hse-field-str" data-field="DisplayMode" style="width:100%;"><option value="">(Default)</option>';
+        html += '<select is="emby-select" class="hse-field-str" data-field="ScrollDirection" style="width:100%;"><option value="">(Auto)</option>';
         [['Horizontal','Horizontal'],['Vertical','Vertical']].forEach(function(o) { html += '<option value="' + o[0] + '"' + (dispModeVal === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; });
+        html += '</select></div>';
+
+        var playstateVal = s._queryIsPlayed || '';
+        html += '<div class="hse-items-only" style="margin-bottom:12px;"><label class="selectLabel">Playstate</label>';
+        html += '<select is="emby-select" class="hse-field-str" data-field="_queryIsPlayed" style="width:100%;">';
+        html += '<option value=""' + (playstateVal === '' ? ' selected' : '') + '>Any</option>';
+        [['true','Played'],['false','Unplayed']].forEach(function(o) { html += '<option value="' + o[0] + '"' + (playstateVal === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; });
         html += '</select></div>';
 
         return html;
     }
 
+    function updateHseItemsOnlyVisibility(tab) {
+        var stSel = tab.querySelector('.selHseSectionType');
+        var isItems = !stSel || stSel.value !== 'boxset';
+        tab.querySelectorAll('.hse-items-only').forEach(function(el) {
+            el.style.display = isItems ? '' : 'none';
+        });
+    }
+
     function wireHomeSectionTypeChange(tab) {
         var stSel = tab.querySelector('.selHseSectionType');
         if (!stSel) return;
+        updateHseItemsOnlyVisibility(tab);
         stSel.addEventListener('change', function() {
             var row = tab.closest('.tag-row');
             if (!row) return;
@@ -2373,7 +2389,55 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     window.Dashboard.alert('"Single Collection" requires "Enable Collection" to be checked for this entry.');
                 }
             }
+            updateHseItemsOnlyVisibility(tab);
         });
+    }
+
+    // Hämta live ContentSection från Emby och spegla värdena i formuläret
+    function syncHomeSectionFromEmby(tab) {
+        var tracked = [];
+        try { tracked = JSON.parse(decodeURIComponent(tab.dataset.hseTracked || '%5B%5D')); } catch {}
+        var entry = tracked.find(function(t) { return t.SectionId && !t.SectionId.startsWith('hsc__'); });
+        if (!entry) return;
+
+        fetch('/HomeScreenCompanion/Hsc/UserSections?UserId=' + encodeURIComponent(entry.UserId))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var sections = (data && data.Sections) || [];
+                var section = sections.find(function(s) { return s.Id === entry.SectionId; });
+                if (!section) return;
+
+                // Fält som kan läsas tillbaka från Emby och ha ett formulärfält
+                var fieldMap = {
+                    SectionType:     section.SectionType || '',
+                    CustomName:      section.CustomName || '',
+                    ImageType:       section.ImageType || '',
+                    SortBy:          section.SortBy || '',
+                    SortOrder:       section.SortOrder || '',
+                    ScrollDirection: (function() {
+                        var sd = section.ScrollDirection;
+                        if (sd === null || sd === undefined) return '';
+                        if (typeof sd === 'number') return sd === 0 ? 'Horizontal' : sd === 1 ? 'Vertical' : '';
+                        return String(sd);
+                    })()
+                };
+
+                Object.keys(fieldMap).forEach(function(field) {
+                    var el = tab.querySelector('[data-field="' + field + '"]');
+                    if (!el) return;
+                    var val = fieldMap[field];
+                    if (el.tagName === 'SELECT') {
+                        for (var i = 0; i < el.options.length; i++) {
+                            if (el.options[i].value === val) { el.selectedIndex = i; break; }
+                        }
+                    } else {
+                        el.value = val;
+                    }
+                });
+
+                updateHseItemsOnlyVisibility(tab);
+            })
+            .catch(function() {}); // ignorera nätverksfel tyst
     }
 
     function initHomeSectionTab(row) {
@@ -2405,6 +2469,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
 
                 // Mark as fully loaded only after form is in DOM so getUiConfig reads form values
                 tab.dataset.hseLoaded = '1';
+
+                // Spegla live-värden från Emby ovanpå de sparade inställningarna
+                syncHomeSectionFromEmby(tab);
+
                 setTimeout(checkFormState, 0);
             })
             .catch(function(e) {
@@ -2501,7 +2569,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 hseTab.querySelectorAll('[data-field]').forEach(function(el) {
                     var f = el.dataset.field;
                     var v = el.type === 'checkbox' ? String(el.checked) : el.value;
-                    if (v !== '') hseSettings[f] = v;
+                    hseSettings[f] = v;
                 });
                 var itemTypes = Array.from(hseTab.querySelectorAll('.chkHseItemType:checked')).map(function(c) { return c.value; });
                 if (itemTypes.length > 0) hseSettings['ItemTypes'] = JSON.stringify(itemTypes);

@@ -45,6 +45,12 @@ namespace HomeScreenCompanion
             public double? FileSizeMb;
         }
 
+        // Utökar ItemsQuery med IsPlayed så att Embys JSON-serialisering inkluderar fältet
+        private class ExtendedItemsQuery : ItemsQuery
+        {
+            public bool? IsPlayed { get; set; }
+        }
+
         private class GroupRunStats
         {
             public string? DisplayName;
@@ -1701,25 +1707,47 @@ namespace HomeScreenCompanion
                         var userInternalId = _userManager.GetInternalId(userId);
 
                         var tracked = tc.HomeSectionTracked.FirstOrDefault(t => t.UserId == userId);
-                        if (tracked != null)
-                            DeleteSectionForUser(userInternalId, tracked.SectionId, sectionMarker, tc.HomeSectionSettings, cancellationToken);
 
-                        var beforeSections = _userManager.GetHomeSections(userInternalId, cancellationToken);
-                        var beforeIds = new HashSet<string>(
-                            (beforeSections?.Sections ?? Array.Empty<ContentSection>())
-                                .Where(s => !string.IsNullOrEmpty(s.Id))
-                                .Select(s => s.Id));
+                        string trackId = sectionMarker;
+
+                        // Försök uppdatera via spårat ID
+                        if (tracked != null && !string.IsNullOrEmpty(tracked.SectionId) && !tracked.SectionId.StartsWith("hsc__"))
+                        {
+                            try
+                            {
+                                // Hämta befintlig sektion som bas — plugin-inställningar appliceras ovanpå utan att nollställa Emby-egna värden
+                                var existingSections = _userManager.GetHomeSections(userInternalId, cancellationToken);
+                                var existingSection = existingSections?.Sections?.FirstOrDefault(s => s.Id == tracked.SectionId);
+                                var updateSection = BuildContentSection(settingsDict, resolvedLibraryId, existingSection);
+                                typeof(ContentSection).GetProperty("Id")?.SetValue(updateSection, tracked.SectionId);
+                                _userManager.UpdateHomeSection(userInternalId, updateSection, cancellationToken);
+                                trackId = tracked.SectionId;
+                                goto _hsSectionDone;
+                            }
+                            catch
+                            {
+                                // ID finns inte längre — fortsätt till skapande
+                            }
+                        }
 
                         var newSection = BuildContentSection(settingsDict, resolvedLibraryId);
-                        _userManager.AddHomeSection(userInternalId, newSection, cancellationToken);
 
-                        var afterSections = _userManager.GetHomeSections(userInternalId, cancellationToken);
-                        var newId = (afterSections?.Sections ?? Array.Empty<ContentSection>())
-                            .Where(s => !string.IsNullOrEmpty(s.Id) && !beforeIds.Contains(s.Id))
-                            .Select(s => s.Id)
-                            .FirstOrDefault() ?? "";
+                        // Skapa ny sektion
+                        {
+                            var beforeSections = _userManager.GetHomeSections(userInternalId, cancellationToken);
+                            var beforeIds = new HashSet<string>(
+                                (beforeSections?.Sections ?? Array.Empty<ContentSection>())
+                                    .Where(s => !string.IsNullOrEmpty(s.Id)).Select(s => s.Id));
+                            _userManager.AddHomeSection(userInternalId, newSection, cancellationToken);
+                            var afterSections = _userManager.GetHomeSections(userInternalId, cancellationToken);
+                            var newId = (afterSections?.Sections ?? Array.Empty<ContentSection>())
+                                .Where(s => !string.IsNullOrEmpty(s.Id) && !beforeIds.Contains(s.Id))
+                                .Select(s => s.Id).FirstOrDefault() ?? "";
+                            trackId = !string.IsNullOrEmpty(newId) ? newId : sectionMarker;
+                        }
 
-                        var trackId = !string.IsNullOrEmpty(newId) ? newId : sectionMarker;
+                        _hsSectionDone:
+
                         if (tracked != null)
                             tracked.SectionId = trackId;
                         else
@@ -1795,15 +1823,22 @@ namespace HomeScreenCompanion
             catch { }
         }
 
-        private ContentSection BuildContentSection(Dictionary<string, string> settings, string libraryId)
+        private ContentSection BuildContentSection(Dictionary<string, string> settings, string libraryId, ContentSection existing = null)
         {
-            var section = new ContentSection();
+            var section = existing ?? new ContentSection();
             var props = typeof(ContentSection).GetProperties(BindingFlags.Public | BindingFlags.Instance);
 
             foreach (var prop in props)
             {
                 if (!prop.CanWrite || prop.Name == "Id" || prop.Name == "ParentId") continue;
-                if (!settings.TryGetValue(prop.Name, out var strVal) || string.IsNullOrEmpty(strVal)) continue;
+                if (!settings.TryGetValue(prop.Name, out var strVal)) continue;
+                // Tomt värde → rensa egenskapen (nullable → null, string → null)
+                if (string.IsNullOrEmpty(strVal))
+                {
+                    if (Nullable.GetUnderlyingType(prop.PropertyType) != null || prop.PropertyType == typeof(string))
+                        prop.SetValue(section, null);
+                    continue;
+                }
                 try
                 {
                     var t = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
@@ -1813,6 +1848,7 @@ namespace HomeScreenCompanion
                     else if (t == typeof(int)) converted = int.Parse(strVal);
                     else if (t == typeof(long)) converted = long.Parse(strVal);
                     else if (t == typeof(DateTime)) converted = DateTime.Parse(strVal);
+                    else if (t.IsEnum) { try { converted = Enum.Parse(t, strVal, true); } catch { } }
                     if (converted != null)
                         prop.SetValue(section, converted);
                 }
@@ -1834,22 +1870,67 @@ namespace HomeScreenCompanion
                 catch { }
             }
 
-            if (settings.TryGetValue("_queryTagId", out var qTagId) && !string.IsNullOrEmpty(qTagId))
+            var queryProp = props.FirstOrDefault(p => p.Name == "Query");
+            if (queryProp != null)
             {
-                var queryProp = props.FirstOrDefault(p => p.Name == "Query");
-                if (queryProp != null)
+                try
                 {
-                    try
+                    // Använd ExtendedItemsQuery för att exponera IsPlayed till Embys JSON-serialisering
+                    var extQuery = new ExtendedItemsQuery();
+                    var queryProps = typeof(ItemsQuery).GetProperties(BindingFlags.Public | BindingFlags.Instance);
+
+                    // Specialfall: _queryTagId → TagIds[]
+                    if (settings.TryGetValue("_queryTagId", out var qTagId) && !string.IsNullOrEmpty(qTagId))
                     {
-                        var queryType = queryProp.PropertyType;
-                        var queryObj = queryProp.GetValue(section) ?? Activator.CreateInstance(queryType);
-                        var tagIdsProp = queryType.GetProperty("TagIds");
+                        var tagIdsProp = queryProps.FirstOrDefault(p => p.Name == "TagIds");
                         if (tagIdsProp != null && tagIdsProp.CanWrite && tagIdsProp.PropertyType == typeof(string[]))
-                            tagIdsProp.SetValue(queryObj, new[] { qTagId });
-                        if (queryProp.CanWrite)
-                            queryProp.SetValue(section, queryObj);
+                            tagIdsProp.SetValue(extQuery, new[] { qTagId });
                     }
-                    catch { }
+
+                    // Specialfall: _queryIsPlayed → IsPlayed (bool?); tomt = Any = null
+                    if (settings.TryGetValue("_queryIsPlayed", out var qIsPlayed))
+                    {
+                        if (!string.IsNullOrEmpty(qIsPlayed) && bool.TryParse(qIsPlayed, out var isPlayedBool))
+                            extQuery.IsPlayed = isPlayedBool;
+                        else
+                            extQuery.IsPlayed = null;
+                    }
+
+                    // Generisk _query* → övriga ItemsQuery-properties
+                    foreach (var key in settings.Keys.Where(k =>
+                        k.StartsWith("_query", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(k, "_queryTagId", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(k, "_queryIsPlayed", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        var val = settings[key];
+                        if (string.IsNullOrEmpty(val)) continue;
+                        var propName = key.Substring(6);
+                        if (propName.Length == 0) continue;
+                        var qProp = queryProps.FirstOrDefault(p => string.Equals(p.Name, propName, StringComparison.OrdinalIgnoreCase));
+                        if (qProp == null || !qProp.CanWrite) continue;
+                        try
+                        {
+                            var t = Nullable.GetUnderlyingType(qProp.PropertyType) ?? qProp.PropertyType;
+                            if (t == typeof(bool)) qProp.SetValue(extQuery, bool.Parse(val));
+                            else if (t == typeof(string)) qProp.SetValue(extQuery, val);
+                        }
+                        catch { }
+                    }
+
+                    if (queryProp.CanWrite)
+                        queryProp.SetValue(section, extQuery);
+                }
+                catch { }
+            }
+
+            // Migration: gamla inställningar sparade ScrollDirection i DisplayMode — rensa bort det
+            {
+                var displayModeProp = props.FirstOrDefault(p => p.Name == "DisplayMode" && p.CanRead);
+                if (displayModeProp != null)
+                {
+                    var dm = displayModeProp.GetValue(section) as string;
+                    if (dm == "Horizontal" || dm == "Vertical")
+                        displayModeProp.SetValue(section, null);
                 }
             }
 
