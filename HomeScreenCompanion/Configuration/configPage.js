@@ -2400,7 +2400,14 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         var entry = tracked.find(function(t) { return t.SectionId && !t.SectionId.startsWith('hsc__'); });
         if (!entry) return;
 
-        fetch('/HomeScreenCompanion/Hsc/UserSections?UserId=' + encodeURIComponent(entry.UserId))
+        var syncHeaders = {};
+        var syncToken = window.ApiClient && window.ApiClient.accessToken && window.ApiClient.accessToken();
+        if (syncToken) syncHeaders['X-Emby-Token'] = syncToken;
+        var syncUrl = window.ApiClient
+            ? window.ApiClient.getUrl('HomeScreenCompanion/Hsc/UserSections', { UserId: entry.UserId })
+            : '/HomeScreenCompanion/Hsc/UserSections?UserId=' + encodeURIComponent(entry.UserId);
+
+        fetch(syncUrl, { headers: syncHeaders })
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 var sections = (data && data.Sections) || [];
