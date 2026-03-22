@@ -43,6 +43,12 @@ namespace HomeScreenCompanion
             public HashSet<string> AudioLanguages;
             public double? DateModifiedDays;
             public double? FileSizeMb;
+            // Music-specific fields
+            public int? BitRate;       // kbps
+            public int? SampleRate;    // Hz
+            public int? BitsPerSample; // bit depth
+            public int? TrackNumber;   // IndexNumber on the item
+            public int? DiscNumber;    // ParentIndexNumber on the item
         }
 
         // Utökar ItemsQuery med IsPlayed så att Embys JSON-serialisering inkluderar fältet
@@ -120,7 +126,7 @@ namespace HomeScreenCompanion
 
                 var allItems = _libraryManager.GetItemList(new InternalItemsQuery
                 {
-                    IncludeItemTypes = new[] { "Movie", "Series" },
+                    IncludeItemTypes = BuildItemTypes(config),
                     Recursive = true,
                     IsVirtualItem = false
                 }).ToList();
@@ -417,13 +423,13 @@ namespace HomeScreenCompanion
 
                                         if (itemToTag.GetType().Name.Contains("Episode"))
                                         {
-                                            try { 
-                                                var series = ((dynamic)itemToTag).Series; 
+                                            try {
+                                                var series = ((dynamic)itemToTag).Series;
                                                 if (series != null) itemToTag = series;
                                             } catch { }
                                         }
 
-                                        if (!itemToTag.GetType().Name.Contains("Movie") && !itemToTag.GetType().Name.Contains("Series"))
+                                        if (!IsTaggableTopLevelItem(itemToTag))
                                             continue;
 
                                         var imdb = itemToTag.GetProviderId("Imdb");
@@ -1043,7 +1049,7 @@ namespace HomeScreenCompanion
 
             var allItems = _libraryManager.GetItemList(new InternalItemsQuery
             {
-                IncludeItemTypes = new[] { "Movie", "Series" },
+                IncludeItemTypes = BuildItemTypes(config),
                 Recursive = true,
                 IsVirtualItem = false
             }).ToList();
@@ -1165,7 +1171,7 @@ namespace HomeScreenCompanion
                                 BaseItem itemToTag = child;
                                 if (child.GetType().Name.Contains("PlaylistItem")) { try { var inner = ((dynamic)child).Item; if (inner != null) itemToTag = inner; } catch { } }
                                 if (itemToTag.GetType().Name.Contains("Episode")) { try { var series = ((dynamic)itemToTag).Series; if (series != null) itemToTag = series; } catch { } }
-                                if (!itemToTag.GetType().Name.Contains("Movie") && !itemToTag.GetType().Name.Contains("Series")) continue;
+                                if (!IsTaggableTopLevelItem(itemToTag)) continue;
                                 var imdb = itemToTag.GetProviderId("Imdb");
                                 if (!string.IsNullOrEmpty(imdb) && blacklist.Contains(imdb)) continue;
                                 if (!matchedLocalItems.Contains(itemToTag)) matchedLocalItems.Add(itemToTag);
@@ -2056,6 +2062,10 @@ namespace HomeScreenCompanion
                                 if (codec.IndexOf("aac", StringComparison.OrdinalIgnoreCase) >= 0) info.IsAac = true;
                                 try { int ch = (int)stream.Channels; if (ch == 1) info.IsMono = true; else if (ch == 2) info.IsStereo = true; else if (ch == 6) info.Is51 = true; else if (ch >= 8) info.Is71 = true; } catch { }
                                 try { var lang = stream.Language?.ToString(); if (!string.IsNullOrWhiteSpace(lang)) info.AudioLanguages.Add(lang); } catch { }
+                                // Music-specific audio stream properties (only populated for Audio/MusicVideo items)
+                                try { int br = (int)stream.BitRate; if (br > 0) info.BitRate = br / 1000; } catch { }
+                                try { int sr = (int)stream.SampleRate; if (sr > 0) info.SampleRate = sr; } catch { }
+                                try { int bps = (int)stream.BitDepth; if (bps > 0) info.BitsPerSample = bps; } catch { }
                             }
                         }
                         catch { }
@@ -2064,6 +2074,9 @@ namespace HomeScreenCompanion
 
                 info.DateModifiedDays = TryGetDateModified(itemToCheck);
                 info.FileSizeMb = TryGetFileSize(itemToCheck);
+                // Music item-level properties (IndexNumber = track, ParentIndexNumber = disc)
+                try { int tn = (int)dynItem.IndexNumber; if (tn > 0) info.TrackNumber = tn; } catch { }
+                try { int dn = (int)dynItem.ParentIndexNumber; if (dn > 0) info.DiscNumber = dn; } catch { }
             }
             catch { }
             return info;
@@ -2089,6 +2102,7 @@ namespace HomeScreenCompanion
             bool is51, is71, isStereo, isMono;
             HashSet<string> audioLanguages;
             double? cachedDateModifiedDays, cachedFileSizeMb;
+            double? cachedBitRate, cachedSampleRate, cachedBitsPerSample, cachedTrackNumber, cachedDiscNumber;
 
             if (cachedInfo.HasValue)
             {
@@ -2103,6 +2117,11 @@ namespace HomeScreenCompanion
                 audioLanguages = ci.AudioLanguages ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 cachedDateModifiedDays = ci.DateModifiedDays;
                 cachedFileSizeMb = ci.FileSizeMb;
+                cachedBitRate = ci.BitRate;
+                cachedSampleRate = ci.SampleRate;
+                cachedBitsPerSample = ci.BitsPerSample;
+                cachedTrackNumber = ci.TrackNumber;
+                cachedDiscNumber = ci.DiscNumber;
             }
             else
             {
@@ -2122,6 +2141,11 @@ namespace HomeScreenCompanion
                 audioLanguages = extracted.AudioLanguages;
                 cachedDateModifiedDays = extracted.DateModifiedDays;
                 cachedFileSizeMb = extracted.FileSizeMb;
+                cachedBitRate = extracted.BitRate;
+                cachedSampleRate = extracted.SampleRate;
+                cachedBitsPerSample = extracted.BitsPerSample;
+                cachedTrackNumber = extracted.TrackNumber;
+                cachedDiscNumber = extracted.DiscNumber;
             }
 
             string mediaType = item.GetType().Name;
@@ -2146,7 +2170,8 @@ namespace HomeScreenCompanion
                 bool EvalCrit(string c) => EvaluateCriterion(c, itemToCheck, is4k, is1080, is720, is8k, isSd,
                     isHevc, isAv1, isH264, isHdr, isHdr10, isDv, isAtmos, isTrueHd, isDtsHdMa, isDts,
                     isAc3, isAac, is51, is71, isStereo, isMono, personCache, audioLanguages, mediaType, itemTags,
-                    userDataCache, cachedDateModifiedDays, cachedFileSizeMb, preloadedUsers, seriesLastPlayedCache);
+                    userDataCache, cachedDateModifiedDays, cachedFileSizeMb, preloadedUsers, seriesLastPlayedCache,
+                    cachedBitRate, cachedSampleRate, cachedBitsPerSample, cachedTrackNumber, cachedDiscNumber);
                 bool EvalGroup(MediaInfoFilter f)
                 {
                     if (f.Criteria == null || f.Criteria.Count == 0) return true;
@@ -2167,7 +2192,8 @@ namespace HomeScreenCompanion
             {
                 if (!EvaluateCriterion(cond, itemToCheck, is4k, is1080, is720, is8k, isSd, isHevc, isAv1, isH264,
                     isHdr, isHdr10, isDv, isAtmos, isTrueHd, isDtsHdMa, isDts, isAc3, isAac, is51, is71, isStereo, isMono,
-                    personCache, audioLanguages, mediaType, itemTags, userDataCache, cachedDateModifiedDays, cachedFileSizeMb, preloadedUsers, seriesLastPlayedCache))
+                    personCache, audioLanguages, mediaType, itemTags, userDataCache, cachedDateModifiedDays, cachedFileSizeMb,
+                    preloadedUsers, seriesLastPlayedCache, cachedBitRate, cachedSampleRate, cachedBitsPerSample, cachedTrackNumber, cachedDiscNumber))
                     return false;
             }
             return true;
@@ -2186,7 +2212,12 @@ namespace HomeScreenCompanion
             double? cachedDateModifiedDays = null,
             double? cachedFileSizeMb = null,
             User[]? preloadedUsers = null,
-            Dictionary<(Guid, long), DateTimeOffset?>? seriesLastPlayedCache = null)
+            Dictionary<(Guid, long), DateTimeOffset?>? seriesLastPlayedCache = null,
+            double? cachedBitRate = null,
+            double? cachedSampleRate = null,
+            double? cachedBitsPerSample = null,
+            double? cachedTrackNumber = null,
+            double? cachedDiscNumber = null)
         {
             bool negate = cond.Length > 0 && cond[0] == '!';
             if (negate) cond = cond.Substring(1);
@@ -2216,6 +2247,8 @@ namespace HomeScreenCompanion
                                         : string.Equals(mediaType, val, StringComparison.OrdinalIgnoreCase),
                     "Tag"           => itemTags != null && SplitCommaValues(val).Any(v => MatchesAny(itemTags, v)),
                     "ImdbId"        => MatchesImdbId(item.GetProviderId("Imdb"), val),
+                    "Artist"        => SplitCommaValues(val).Any(v => MatchesArtistOrAlbumArtist(item, v, false)),
+                    "Album"         => SplitCommaValues(val).Any(v => MatchesAlbumTitle(item, v, false)),
                     _ => false
                 };
             }
@@ -2341,6 +2374,8 @@ namespace HomeScreenCompanion
                                              : SplitCommaValues(tVal).Any(n => MatchesPerson(item, n, "Director")),
                     "Writer"        => exact ? personCache != null && SplitCommaValues(tVal).Any(n => personCache.TryGetValue("Writer:exact:" + n, out var wIds3) && wIds3.Contains(item.InternalId))
                                              : SplitCommaValues(tVal).Any(n => MatchesPerson(item, n, "Writer")),
+                    "Artist"        => SplitCommaValues(tVal).Any(v => MatchesArtistOrAlbumArtist(item, v, exact)),
+                    "Album"         => SplitCommaValues(tVal).Any(v => MatchesAlbumTitle(item, v, exact)),
                     _ => false
                 };
             }
@@ -2357,6 +2392,12 @@ namespace HomeScreenCompanion
                     "DateAdded"       => (double?)(DateTime.UtcNow - item.DateCreated).TotalDays,
                     "DateModified"    => cachedDateModifiedDays ?? TryGetDateModified(item),
                     "FileSize"        => cachedFileSizeMb ?? TryGetFileSize(item),
+                    "BitRate"          => cachedBitRate,
+                    "SampleRate"       => cachedSampleRate,
+                    "BitsPerSample"    => cachedBitsPerSample,
+                    "TrackNumber"      => cachedTrackNumber,
+                    "DiscNumber"       => cachedDiscNumber,
+                    "WatchedByCount"   => (double?)CountWatchedByUsers(item, preloadedUsers, userDataCache),
                     _ => null
                 };
                 if (!v.HasValue) return false;
@@ -2461,6 +2502,111 @@ namespace HomeScreenCompanion
         private static bool TagConfigTargetsEpisodes(TagConfig tagConfig) =>
             GetAllCriteria(tagConfig).Any(c =>
                 c.TrimStart('!').StartsWith("MediaType:Episode", StringComparison.OrdinalIgnoreCase));
+
+        // Returns true if any active MediaInfo group references music-specific criteria
+        private static bool ConfigNeedsMusicItems(PluginConfiguration config) =>
+            config.Tags.Any(t => t.Active && t.SourceType == "MediaInfo"
+                && GetAllCriteria(t).Any(c => {
+                    var s = c.TrimStart('!');
+                    return s.StartsWith("MediaType:Audio", StringComparison.OrdinalIgnoreCase)
+                        || s.StartsWith("MediaType:MusicVideo", StringComparison.OrdinalIgnoreCase)
+                        || s.StartsWith("MediaType:MusicAlbum", StringComparison.OrdinalIgnoreCase)
+                        || s.StartsWith("MediaType:MusicArtist", StringComparison.OrdinalIgnoreCase)
+                        || s.StartsWith("Artist:", StringComparison.OrdinalIgnoreCase)
+                        || s.StartsWith("Album:", StringComparison.OrdinalIgnoreCase)
+                        || s.StartsWith("BitRate:", StringComparison.OrdinalIgnoreCase)
+                        || s.StartsWith("SampleRate:", StringComparison.OrdinalIgnoreCase)
+                        || s.StartsWith("BitsPerSample:", StringComparison.OrdinalIgnoreCase)
+                        || s.StartsWith("TrackNumber:", StringComparison.OrdinalIgnoreCase)
+                        || s.StartsWith("DiscNumber:", StringComparison.OrdinalIgnoreCase);
+                }));
+
+        // Builds the IncludeItemTypes array, adding music types only when the config needs them
+        private static string[] BuildItemTypes(PluginConfiguration config)
+        {
+            var types = new List<string> { "Movie", "Series" };
+            if (ConfigNeedsMusicItems(config))
+                types.AddRange(new[] { "Audio", "MusicVideo", "MusicAlbum", "MusicArtist" });
+            return types.ToArray();
+        }
+
+        // Returns true if the item type is a taggable top-level item (Movie, Series, or music types)
+        private static bool IsTaggableTopLevelItem(BaseItem item)
+        {
+            var name = item.GetType().Name;
+            return name.Contains("Movie") || name.Contains("Series")
+                || name.Contains("MusicAlbum") || name.Contains("MusicArtist")
+                || name.Contains("MusicVideo") || name.Contains("Audio");
+        }
+
+        // Matches an item's artist or album artist against a search name
+        private static bool MatchesArtistOrAlbumArtist(BaseItem item, string name, bool exact)
+        {
+            try
+            {
+                dynamic d = item;
+                try
+                {
+                    string albumArtist = d.AlbumArtist ?? "";
+                    if (exact ? string.Equals(albumArtist, name, StringComparison.OrdinalIgnoreCase)
+                              : albumArtist.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0)
+                        return true;
+                }
+                catch { }
+                try
+                {
+                    System.Collections.IEnumerable artists = d.Artists;
+                    if (artists != null)
+                        foreach (string a in artists)
+                            if (a != null && (exact ? string.Equals(a, name, StringComparison.OrdinalIgnoreCase)
+                                                    : a.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0))
+                                return true;
+                }
+                catch { }
+            }
+            catch { }
+            return false;
+        }
+
+        // Matches an item's Album property against a search name
+        private static bool MatchesAlbumTitle(BaseItem item, string name, bool exact)
+        {
+            try
+            {
+                dynamic d = item;
+                string album = d.Album ?? "";
+                return exact ? string.Equals(album, name, StringComparison.OrdinalIgnoreCase)
+                             : album.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0;
+            }
+            catch { return false; }
+        }
+
+        // Returns the number of non-disabled users who have marked the item as played
+        private int CountWatchedByUsers(BaseItem item,
+            User[]? users,
+            Dictionary<(Guid, long), (bool Played, DateTimeOffset? LastPlayedDate, int PlayCount)>? userDataCache)
+        {
+            if (users == null || users.Length == 0) return 0;
+            int count = 0;
+            foreach (var u in users)
+            {
+                var k = (u.Id, item.InternalId);
+                bool played;
+                if (userDataCache != null && userDataCache.TryGetValue(k, out var cd))
+                    played = cd.Played;
+                else
+                {
+                    var ud = _userDataManager?.GetUserData(u, item);
+                    played = ud?.Played ?? false;
+                    if (userDataCache != null)
+                        userDataCache[k] = ud == null
+                            ? (false, (DateTimeOffset?)null, 0)
+                            : (ud.Played, ud.LastPlayedDate, ud.PlayCount);
+                }
+                if (played) count++;
+            }
+            return count;
+        }
 
         private static bool TagConfigIncludesParentSeries(TagConfig tagConfig) =>
             GetAllCriteria(tagConfig).Any(c =>

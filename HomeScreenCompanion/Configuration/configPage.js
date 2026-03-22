@@ -670,8 +670,8 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 var v = el.type === 'checkbox' ? String(el.checked) : el.value;
                 hseSettings[f] = v;
             });
-            var itemTypes = Array.from(hseTab.querySelectorAll('.chkHseItemType:checked')).map(function(c) { return c.value; });
-            if (itemTypes.length > 0) hseSettings['ItemTypes'] = JSON.stringify(itemTypes);
+            var itemTypesVal = (hseTab.querySelector('.selHseItemTypes') || {}).value || 'Movie,Series';
+            hseSettings['ItemTypes'] = JSON.stringify(itemTypesVal.split(','));
         } else {
             try { hseSettings = JSON.parse(decodeURIComponent((hseTab && hseTab.dataset.hseSettings) || '%7B%7D')); } catch(ex) {}
         }
@@ -771,16 +771,16 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         HDR:        [['HDR', 'HDR (any)'], ['DolbyVision', 'Dolby Vision'], ['HDR10', 'HDR10']],
         AudioFormat: [['Atmos', 'Dolby Atmos'], ['TrueHD', 'Dolby TrueHD'], ['DtsHdMa', 'DTS-HD MA'], ['DTS', 'DTS'], ['AC3', 'Dolby Digital / AC3'], ['AAC', 'AAC']],
         AudioChannels: [['7.1', '7.1+ Surround'], ['5.1', '5.1 Surround'], ['Stereo', 'Stereo'], ['Mono', 'Mono']],
-        MediaType: [['Movie', 'Movie'], ['Series', 'Show / Series'], ['Episode', 'Episode']],
+        MediaType: [['Movie', 'Movie'], ['Series', 'Show / Series'], ['Episode', 'Episode'], ['Audio', 'Music Track (Audio)'], ['MusicVideo', 'Music Video'], ['MusicAlbum', 'Music Album'], ['MusicArtist', 'Music Artist']],
         IsPlayed: [['Watched', 'Watched'], ['Unwatched', 'Unwatched']]
     };
-    var MI_NUMERIC_PROPS = ['CommunityRating', 'Year', 'Runtime', 'DateAdded', 'DateModified', 'FileSize', 'LastPlayed', 'PlayCount'];
-    var MI_UNIT_LABELS = { DateAdded: 'days ago', DateModified: 'days ago', LastPlayed: 'days ago', FileSize: 'MB', PlayCount: 'plays' };
+    var MI_NUMERIC_PROPS = ['CommunityRating', 'Year', 'Runtime', 'DateAdded', 'DateModified', 'FileSize', 'LastPlayed', 'PlayCount', 'BitRate', 'SampleRate', 'BitsPerSample', 'TrackNumber', 'DiscNumber', 'WatchedByCount'];
+    var MI_UNIT_LABELS = { DateAdded: 'days ago', DateModified: 'days ago', LastPlayed: 'days ago', FileSize: 'MB', PlayCount: 'plays', BitRate: 'kbps', SampleRate: 'Hz', BitsPerSample: 'bits', WatchedByCount: 'users' };
     var MI_USER_PROPS = ['IsPlayed', 'LastPlayed', 'PlayCount'];
-    var MI_TEXT_MATCH_PROPS = ['Tag', 'Title', 'EpisodeTitle', 'Overview', 'Studio', 'Genre', 'Actor', 'Director', 'Writer', 'ContentRating', 'AudioLanguage'];
+    var MI_TEXT_MATCH_PROPS = ['Tag', 'Title', 'EpisodeTitle', 'Overview', 'Studio', 'Genre', 'Actor', 'Director', 'Writer', 'ContentRating', 'AudioLanguage', 'Artist', 'Album'];
     var MI_TEXT_MATCH_DEFAULT = {
         Title: 'contains', EpisodeTitle: 'contains', Overview: 'contains', Studio: 'contains', Genre: 'contains', Tag: 'contains',
-        Actor: 'exact', Director: 'exact', Writer: 'exact',
+        Actor: 'exact', Director: 'exact', Writer: 'exact', Artist: 'contains', Album: 'contains',
         ContentRating: 'exact', AudioLanguage: 'exact'
     };
     var _miUsers = null;
@@ -816,14 +816,31 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             { name: 'Unwatched movies',
               build: function() { return [{ Operator:'AND', GroupOperator:'AND', Criteria:['MediaType:Movie','IsPlayed:__any__:=:Unwatched'] }]; } },
             { name: 'Never played by anyone',
-              build: function() { return [{ Operator:'AND', GroupOperator:'AND', Criteria:['IsPlayed:__all__:=:Unwatched'] }]; } }
+              build: function() { return [{ Operator:'AND', GroupOperator:'AND', Criteria:['IsPlayed:__all__:=:Unwatched'] }]; } },
+            { name: 'Watched by at least 2 users',
+              build: function() { return [{ Operator:'AND', GroupOperator:'AND', Criteria:['WatchedByCount:>=:2'] }]; } },
+            { name: 'Unseen by everyone',
+              build: function() { return [{ Operator:'AND', GroupOperator:'AND', Criteria:['WatchedByCount:=:0'] }]; } }
+        ]},
+        { label: 'Music', presets: [
+            { name: 'All music tracks',
+              build: function() { return [{ Operator:'AND', GroupOperator:'AND', Criteria:['MediaType:Audio'] }]; } },
+            { name: 'All music videos',
+              build: function() { return [{ Operator:'AND', GroupOperator:'AND', Criteria:['MediaType:MusicVideo'] }]; } },
+            { name: 'Lossless audio (≥24-bit)',
+              build: function() { return [{ Operator:'AND', GroupOperator:'AND', Criteria:['MediaType:Audio', 'BitsPerSample:>=:24'] }]; } },
+            { name: 'Hi-res audio (≥96 kHz)',
+              build: function() { return [{ Operator:'AND', GroupOperator:'AND', Criteria:['MediaType:Audio', 'SampleRate:>=:96000'] }]; } },
+            { name: 'Music videos in 4K',
+              build: function() { return [{ Operator:'AND', GroupOperator:'AND', Criteria:['MediaType:MusicVideo', '4K'] }]; } }
         ]}
     ];
     var MI_TEXT_PLACEHOLDERS = {
         Title: 'e.g. Batman, Dark Knight', EpisodeTitle: 'e.g. Pilot, Finale', Overview: 'e.g. heist, time travel',
         Studio: 'e.g. Warner, Netflix, HBO', Genre: 'e.g. Action, Thriller',
         Actor: 'e.g. Tom Hanks, Idris Elba', Director: 'e.g. Nolan, Tarantino', Writer: 'e.g. Tarantino, Nolan',
-        ContentRating: 'e.g. PG-13, R', AudioLanguage: 'e.g. eng, swe', ImdbId: 'e.g. tt1234567, tt7654321'
+        ContentRating: 'e.g. PG-13, R', AudioLanguage: 'e.g. eng, swe', ImdbId: 'e.g. tt1234567, tt7654321',
+        Artist: 'e.g. Radiohead, Pink Floyd', Album: 'e.g. OK Computer, Dark Side of the Moon'
     };
 
     function propertyOptionsHtml(selected) {
@@ -831,8 +848,9 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             { label: 'Video', props: [['Resolution','Resolution'], ['VideoCodec','Video Codec'], ['HDR','HDR']] },
             { label: 'Audio', props: [['AudioFormat','Audio Format'], ['AudioChannels','Audio Channels'], ['AudioLanguage','Audio Language']] },
             { label: 'Content', props: [['MediaType','Media Type'], ['Tag','Tag'], ['Title','Title'], ['EpisodeTitle','Title (Episode)'], ['Overview','Overview'], ['Studio','Studio'], ['Genre','Genre'], ['Actor','Actor / Cast'], ['Director','Director'], ['Writer','Writer'], ['ContentRating','Content Rating'], ['ImdbId','IMDB ID']] },
+            { label: 'Music', props: [['Artist','Artist'], ['Album','Album'], ['BitRate','Bit Rate (kbps)'], ['SampleRate','Sample Rate (Hz)'], ['BitsPerSample','Bit Depth'], ['TrackNumber','Track Number'], ['DiscNumber','Disc Number']] },
             { label: 'Metrics', props: [['CommunityRating','Community Rating'], ['Year','Year'], ['Runtime','Runtime (minutes)'], ['DateAdded','Date Added'], ['DateModified','Date Modified'], ['FileSize','File Size (MB)']] },
-            { label: 'Activity', props: [['IsPlayed','Watched / Unwatched'], ['LastPlayed','Last Played'], ['PlayCount','Play Count']] }
+            { label: 'Activity', props: [['IsPlayed','Watched / Unwatched'], ['LastPlayed','Last Played'], ['PlayCount','Play Count'], ['WatchedByCount','Watched by (user count)']] }
         ];
         return groups.map(function (g) {
             return '<optgroup label="' + g.label + '">' +
@@ -1201,11 +1219,12 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         var _collTargetSer = tagConfig.CollectionTargetSeries  || tagConfig.MediaInfoTargetSeries  || _legacyTarget === 'Series' || !_collAnySet;
 
         var enableHomeSection = tagConfig.EnableHomeSection ? 'checked' : '';
+        var disableHomeSection = (!tagConfig.EnableTag && !tagConfig.EnableCollection) ? 'disabled' : '';
         var homeSectionLibraryId = encodeURIComponent(tagConfig.HomeSectionLibraryId || 'auto');
         var homeSectionUserIdsEnc = encodeURIComponent(JSON.stringify(tagConfig.HomeSectionUserIds || []));
         var homeSectionSettingsEnc = encodeURIComponent(tagConfig.HomeSectionSettings || '{}');
         var homeSectionTrackedEnc = encodeURIComponent(JSON.stringify(tagConfig.HomeSectionTracked || []));
-        var hsDefaultSectionType = tagConfig.EnableCollection ? 'boxset' : 'items';
+        var hsDefaultSectionType = tagConfig.EnableCollection ? 'boxset' : (tagConfig.EnableTag ? 'items' : 'boxset');
 
         var mediaFilters = (tagConfig.MediaInfoFilters && tagConfig.MediaInfoFilters.length > 0)
             ? tagConfig.MediaInfoFilters
@@ -1531,10 +1550,11 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     data-hse-loaded="0">
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label>
-                            <input is="emby-checkbox" class="chkEnableHomeSection" type="checkbox" ${enableHomeSection}/>
+                            <input is="emby-checkbox" class="chkEnableHomeSection" type="checkbox" ${enableHomeSection} ${disableHomeSection}/>
                             <span>Add as home screen section</span>
                         </label>
                         <div class="fieldDescription">A home screen section will be managed for selected users each time sync runs.</div>
+                        <div class="hse-disabled-hint" style="font-size:0.9em; color:#e07070; margin-top:4px; display:${(!tagConfig.EnableTag && !tagConfig.EnableCollection) ? 'block' : 'none'};">Requires <strong>Apply Tag</strong> or <strong>Create Collection</strong> to be enabled.</div>
                     </div>
                     <div class="hse-details" style="display:${enableHomeSection ? 'block' : 'none'}; margin-top:15px;">
                         <div style="margin-bottom:15px;">
@@ -1708,11 +1728,13 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         row.querySelector('.chkEnableTag').addEventListener('change', function () {
             row.querySelector('.tag-settings').style.display = this.checked ? 'block' : 'none';
             updateBadges(row);
+            updateHseSectionAvailability(row);
         });
 
         row.querySelector('.chkEnableCollection').addEventListener('change', function () {
             row.querySelector('.collection-settings').style.display = this.checked ? 'block' : 'none';
             updateBadges(row);
+            updateHseSectionAvailability(row);
         });
 
         row.querySelector('.chkOverrideWhenActive').addEventListener('change', function () {
@@ -1720,15 +1742,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         });
 
         row.querySelector('.chkEnableHomeSection').addEventListener('change', function () {
-            if (this.checked) {
-                var hasTag = !!(row.querySelector('.chkEnableTag') || {}).checked;
-                var hasColl = !!(row.querySelector('.chkEnableCollection') || {}).checked;
-                if (!hasTag && !hasColl) {
-                    this.checked = false;
-                    window.Dashboard.alert('Enable either "Tag" or "Collection" for this entry before adding it as a home screen section.');
-                    return;
-                }
-            }
             var hseDetails = row.querySelector('.hse-details');
             if (hseDetails) hseDetails.style.display = this.checked ? 'block' : 'none';
             updateBadges(row);
@@ -2295,27 +2308,47 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
 
 
 
-    function buildHomeSectionFormHtml(savedSettings, defaultSectionType, defaultName) {
+    function buildHomeSectionFormHtml(savedSettings, defaultSectionType, defaultName, tagEnabled, collEnabled) {
         var s = savedSettings || {};
         var html = '';
 
-        var st = s.SectionType || defaultSectionType || 'items';
+        var st = s.SectionType || defaultSectionType || (collEnabled ? 'boxset' : 'items');
         html += '<div style="margin-bottom:12px;"><label class="selectLabel">Section Type</label>';
         html += '<select is="emby-select" class="selHseSectionType hse-field-str" data-field="SectionType" style="width:100%;">';
-        [['boxset','Single Collection'],['items','Dynamic Media (tag)']].forEach(function(o) {
+        var sectionTypeOptions = [];
+        if (collEnabled) sectionTypeOptions.push(['boxset', 'Single Collection']);
+        if (tagEnabled)  sectionTypeOptions.push(['items',  'Dynamic Media (tag)']);
+        sectionTypeOptions.forEach(function(o) {
             html += '<option value="' + o[0] + '"' + (st === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
         });
         html += '</select></div>';
 
         var savedItemTypes = [];
         try { savedItemTypes = JSON.parse(s.ItemTypes || '[]'); } catch {}
-        html += '<div style="margin-bottom:12px;"><label class="selectLabel">Item Types <span style="opacity:0.6;font-size:0.85em;">(Dynamic Media only)</span></label>';
-        html += '<div style="display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:4px;">';
-        ['Movie','Series','Episode','MusicVideo'].forEach(function(t) {
-            var chk = savedItemTypes.indexOf(t) !== -1 ? ' checked' : '';
-            html += '<label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="chkHseItemType" value="' + t + '"' + chk + '/><span>' + t + '</span></label>';
+        var savedItemTypesStr = savedItemTypes.length > 0 ? savedItemTypes.join(',') : 'Movie,Series';
+        html += '<div class="hse-items-only" style="margin-bottom:12px;"><label class="selectLabel">Media Type</label>';
+        html += '<select is="emby-select" class="selHseItemTypes" style="width:100%;">';
+        [
+            ['Movie',        'Movies'],
+            ['Series',       'Shows'],
+            ['Movie,Series', 'Movies & Shows'],
+            ['Episode',      'Episodes'],
+            ['MusicVideo',   'Music Videos'],
+            ['Video',        'Videos'],
+            ['Photo',        'Photos'],
+            ['Program',      'Programs'],
+            ['TvChannel',    'Live TV Channels'],
+            ['MusicAlbum',   'Music Albums'],
+            ['MusicArtist',  'Artists'],
+            ['Audio',        'Songs'],
+            ['AudioBook',    'Audiobooks'],
+            ['Trailer',      'Trailers'],
+            ['Game',         'Games'],
+            ['Book',         'Books']
+        ].forEach(function(o) {
+            html += '<option value="' + o[0] + '"' + (savedItemTypesStr === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
         });
-        html += '</div></div>';
+        html += '</select></div>';
 
         var customName = (s.CustomName || '').replace(/"/g, '&quot;');
         var customNamePlaceholder = (defaultName || '').replace(/"/g, '&quot;');
@@ -2373,22 +2406,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         if (!stSel) return;
         updateHseItemsOnlyVisibility(tab);
         stSel.addEventListener('change', function() {
-            var row = tab.closest('.tag-row');
-            if (!row) return;
-            var selected = stSel.value;
-            if (selected === 'items') {
-                var tagEnabled = !!(row.querySelector('.chkEnableTag') || {}).checked;
-                if (!tagEnabled) {
-                    stSel.value = tab.dataset.hseDefaultType || 'boxset';
-                    window.Dashboard.alert('"Dynamic Media (tag)" requires "Enable Tag" to be checked for this entry.');
-                }
-            } else if (selected === 'boxset') {
-                var collEnabled = !!(row.querySelector('.chkEnableCollection') || {}).checked;
-                if (!collEnabled) {
-                    stSel.value = tab.dataset.hseDefaultType || 'items';
-                    window.Dashboard.alert('"Single Collection" requires "Enable Collection" to be checked for this entry.');
-                }
-            }
             updateHseItemsOnlyVisibility(tab);
         });
     }
@@ -2442,6 +2459,15 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     }
                 });
 
+                // Sync ItemTypes dropdown separately (not a data-field element)
+                var itemTypesSel = tab.querySelector('.selHseItemTypes');
+                if (itemTypesSel && section.ItemTypes && section.ItemTypes.length > 0) {
+                    var itemTypesStr = section.ItemTypes.join(',');
+                    for (var i = 0; i < itemTypesSel.options.length; i++) {
+                        if (itemTypesSel.options[i].value === itemTypesStr) { itemTypesSel.selectedIndex = i; break; }
+                    }
+                }
+
                 updateHseItemsOnlyVisibility(tab);
             })
             .catch(function() {}); // ignorera nätverksfel tyst
@@ -2471,7 +2497,9 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
 
                 // Structured section settings form
                 var defaultTagName = row.querySelector('.txtEntryLabel').value || row.querySelector('.txtTagName').value || '';
-                tab.querySelector('.hse-fields-inner').innerHTML = buildHomeSectionFormHtml(savedSettings, defaultSectionType, defaultTagName);
+                var tagEnabled  = !!(row.querySelector('.chkEnableTag') || {}).checked;
+                var collEnabled = !!(row.querySelector('.chkEnableCollection') || {}).checked;
+                tab.querySelector('.hse-fields-inner').innerHTML = buildHomeSectionFormHtml(savedSettings, defaultSectionType, defaultTagName, tagEnabled, collEnabled);
                 wireHomeSectionTypeChange(tab);
 
                 // Mark as fully loaded only after form is in DOM so getUiConfig reads form values
@@ -2487,6 +2515,43 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 tab.dataset.hseLoaded = '0'; // allow retry
             });
     }
+    function updateHseSectionAvailability(row) {
+        var tagEnabled  = !!(row.querySelector('.chkEnableTag') || {}).checked;
+        var collEnabled = !!(row.querySelector('.chkEnableCollection') || {}).checked;
+        var hseCbx = row.querySelector('.chkEnableHomeSection');
+        if (!hseCbx) return;
+
+        var hint = row.querySelector('.hse-disabled-hint');
+        if (!tagEnabled && !collEnabled) {
+            hseCbx.disabled = true;
+            hseCbx.checked = false;
+            if (hint) hint.style.display = 'block';
+            var hseDetails = row.querySelector('.hse-details');
+            if (hseDetails) hseDetails.style.display = 'none';
+            updateBadges(row);
+        } else {
+            hseCbx.disabled = false;
+            if (hint) hint.style.display = 'none';
+        }
+
+        var tab = row.querySelector('.homescreen-tab');
+        if (tab && tab.dataset.hseLoaded === '1') {
+            refreshHseSectionTypeOptions(tab, tagEnabled, collEnabled);
+        }
+    }
+
+    function refreshHseSectionTypeOptions(tab, tagEnabled, collEnabled) {
+        var stSel = tab.querySelector('.selHseSectionType');
+        if (!stSel) return;
+        var currentVal = stSel.value;
+        stSel.innerHTML = '';
+        if (collEnabled) { var o1 = document.createElement('option'); o1.value = 'boxset'; o1.textContent = 'Single Collection'; stSel.appendChild(o1); }
+        if (tagEnabled)  { var o2 = document.createElement('option'); o2.value = 'items';  o2.textContent = 'Dynamic Media (tag)'; stSel.appendChild(o2); }
+        var stillValid = Array.from(stSel.options).some(function(o) { return o.value === currentVal; });
+        if (stillValid) stSel.value = currentVal;
+        updateHseItemsOnlyVisibility(tab);
+    }
+
     // ---- End Home Section Tab helpers ----
 
     function getUiConfig(view, forComparison) {
@@ -2578,8 +2643,8 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     var v = el.type === 'checkbox' ? String(el.checked) : el.value;
                     hseSettings[f] = v;
                 });
-                var itemTypes = Array.from(hseTab.querySelectorAll('.chkHseItemType:checked')).map(function(c) { return c.value; });
-                if (itemTypes.length > 0) hseSettings['ItemTypes'] = JSON.stringify(itemTypes);
+                var itemTypesVal = (hseTab.querySelector('.selHseItemTypes') || {}).value || 'Movie,Series';
+                hseSettings['ItemTypes'] = JSON.stringify(itemTypesVal.split(','));
             } else {
                 try { hseSettings = JSON.parse(decodeURIComponent((hseTab && hseTab.dataset.hseSettings) || '%7B%7D')); } catch {}
             }

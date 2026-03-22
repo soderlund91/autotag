@@ -1043,7 +1043,7 @@
         </div>
 
         <div style="margin-top: 5em; padding-top: 2em; border-top: 1px solid var(--line-color); text-align: center; color: var(--theme-text-secondary);">
-            <p style="margin-bottom: 5px; font-weight: bold;">Home Screen Companion v3.2.0.0</p>
+            <p style="margin-bottom: 5px; font-weight: bold;">Home Screen Companion v3.2.1.0</p>
             <div style="display: flex; justify-content: center; margin-bottom: 15px;">
                 <a href="https://github.com/soderlund91/HomeScreenCompanion/tree/main" target="_blank" class="simple-link">
                     <i class="md-icon" style="font-size:1.2em;">link</i>
@@ -1240,7 +1240,7 @@
                     <i class="md-icon help-section-icon">analytics</i>
                     <span>MediaInfo Filters</span>
                 </div>
-                <div class="step-text" style="margin-bottom:12px; font-size:0.92em;">Build filter rules from five property categories. Rules within a group use AND/OR logic; the <strong>NOT</strong> toggle inverts any rule. Numeric properties support <code>=&nbsp; &gt;&nbsp; &ge;&nbsp; &lt;&nbsp; &le;</code>. Activity properties can be scoped to <em>any user</em>, <em>all users</em>, or a specific user. Text fields support <strong>comma-separated values</strong> — entering multiple values matches any one of them (OR logic).</div>
+                <div class="step-text" style="margin-bottom:12px; font-size:0.92em;">Build filter rules from six property categories: <strong>Video</strong>, <strong>Audio</strong>, <strong>Content</strong>, <strong>Music</strong>, <strong>Metrics</strong>, and <strong>Activity</strong>. Rules within a group use AND/OR logic; the <strong>NOT</strong> toggle inverts any rule. Numeric properties support <code>=&nbsp; &gt;&nbsp; &ge;&nbsp; &lt;&nbsp; &le;</code>. Activity properties can be scoped to <em>any user</em>, <em>all users</em>, or a specific user. Text fields support <strong>comma-separated values</strong> — entering multiple values matches any one of them (OR logic). Use <strong>MediaType</strong> to target specific item types (Movie, Series, Episode, Audio, MusicVideo, MusicAlbum, MusicArtist).</div>
                 <div class="mi-help-grid" style="grid-template-columns: repeat(3, 1fr);">
                     <div class="mi-help-col">
                         <div class="mi-help-category">Video</div>
@@ -1252,7 +1252,11 @@
                     </div>
                     <div class="mi-help-col">
                         <div class="mi-help-category">Content</div>
-                        Genre, Actor/Cast, Director, Writer, Studio, Title, Overview, Tag, Content Rating, IMDB ID — all support comma-separated values (e.g. <em>Netflix, HBO</em> or <em>Tom Hanks, Idris Elba</em>)
+                        Genre, Actor/Cast, Director, Writer, Studio, Title, Overview, Tag, Content Rating, IMDB ID — all support comma-separated values (e.g. <em>Netflix, HBO</em> or <em>Tom Hanks, Idris Elba</em>). <strong>MediaType</strong>: Movie, Series, Episode, Audio, MusicVideo, MusicAlbum, MusicArtist
+                    </div>
+                    <div class="mi-help-col">
+                        <div class="mi-help-category">Music</div>
+                        Artist, Album — use <em>MediaType:Audio</em> to target songs, <em>MediaType:MusicVideo</em> for music videos. BitRate (kbps), SampleRate (Hz), BitsPerSample, TrackNumber, DiscNumber support numeric operators (e.g. <em>BitsPerSample:&gt;=:24</em>)
                     </div>
                     <div class="mi-help-col">
                         <div class="mi-help-category">Metrics</div>
@@ -1260,7 +1264,7 @@
                     </div>
                     <div class="mi-help-col">
                         <div class="mi-help-category">Activity</div>
-                        Watched / Unwatched (IsPlayed), Last Played (days ago), Play Count — scoped per user: <em>any</em>, <em>all</em>, or a specific user
+                        Watched / Unwatched (IsPlayed), Last Played (days ago), Play Count — scoped per user: <em>any</em>, <em>all</em>, or a specific user. <strong>WatchedByCount</strong> counts how many users have finished the item (e.g. <em>WatchedByCount:&gt;=:2</em>)
                     </div>
                 </div>
 
