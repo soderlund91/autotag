@@ -371,6 +371,53 @@ public class HomeScreenCompanionService : IService
             }
         }
 
+        // Walks full type hierarchy (base types + interfaces) to find all methods with the given name
+        private static List<MethodInfo> FindMethodsInHierarchy(object obj, string methodName)
+        {
+            var results = new List<MethodInfo>();
+            var seen = new HashSet<Type>();
+            var queue = new Queue<Type>();
+            queue.Enqueue(obj.GetType());
+            while (queue.Count > 0)
+            {
+                var t = queue.Dequeue();
+                if (!seen.Add(t)) continue;
+                results.AddRange(t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                    .Where(m => m.Name == methodName || m.Name.EndsWith("." + methodName)));
+                if (t.BaseType != null) queue.Enqueue(t.BaseType);
+                foreach (var iface in t.GetInterfaces()) queue.Enqueue(iface);
+            }
+            return results;
+        }
+
+        public object Get(HscDebugMethodsRequest request)
+        {
+            var lines = new System.Text.StringBuilder();
+            lines.AppendLine($"Runtime type: {_userManager.GetType().FullName}");
+            lines.AppendLine();
+
+            var seen = new HashSet<Type>();
+            var queue = new Queue<Type>();
+            queue.Enqueue(_userManager.GetType());
+            while (queue.Count > 0)
+            {
+                var t = queue.Dequeue();
+                if (!seen.Add(t)) continue;
+                var relevant = t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                    .Where(m => m.Name.IndexOf("Section", StringComparison.OrdinalIgnoreCase) >= 0
+                             || m.Name.IndexOf("Move", StringComparison.OrdinalIgnoreCase) >= 0
+                             || m.Name.IndexOf("Home", StringComparison.OrdinalIgnoreCase) >= 0);
+                foreach (var m in relevant)
+                {
+                    var ps = string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name + " " + p.Name));
+                    lines.AppendLine($"  [{t.Name}] {m.ReturnType.Name} {m.Name}({ps})");
+                }
+                if (t.BaseType != null) queue.Enqueue(t.BaseType);
+                foreach (var iface in t.GetInterfaces()) queue.Enqueue(iface);
+            }
+            return lines.ToString();
+        }
+
         public object Post(HscSaveUserSectionsRequest request)
         {
             try
@@ -379,69 +426,89 @@ public class HomeScreenCompanionService : IService
                     return new HscSaveUserSectionsResponse { Success = false, Message = "No user specified." };
 
                 var internalId = _userManager.GetInternalId(request.UserId);
+                var requestedSections = request.Sections ?? Array.Empty<ContentSection>();
+                var requestedIds = new HashSet<string>(
+                    requestedSections.Where(s => !string.IsNullOrEmpty(s.Id)).Select(s => s.Id),
+                    StringComparer.OrdinalIgnoreCase);
 
-                // Spara gamla IDs i ordning (indexmatchad mot request.Sections)
-                var oldIds = (request.Sections ?? Array.Empty<ContentSection>())
-                    .Select(s => s.Id ?? "")
-                    .ToArray();
-
+                // 1. Radera bara sektioner som faktiskt togs bort från listan
                 var existing = _userManager.GetHomeSections(internalId, CancellationToken.None);
-                if (existing?.Sections?.Length > 0)
-                {
-                    var idsToDelete = existing.Sections
-                        .Where(s => !string.IsNullOrEmpty(s.Id))
-                        .Select(s => s.Id)
-                        .ToArray();
-                    if (idsToDelete.Length > 0)
-                        _userManager.DeleteHomeSections(internalId, idsToDelete, CancellationToken.None);
-                }
+                var toDelete = (existing?.Sections ?? Array.Empty<ContentSection>())
+                    .Where(s => !string.IsNullOrEmpty(s.Id) && !requestedIds.Contains(s.Id))
+                    .Select(s => s.Id)
+                    .ToArray();
+                if (toDelete.Length > 0)
+                    _userManager.DeleteHomeSections(internalId, toDelete, CancellationToken.None);
 
-                if (request.Sections != null)
-                {
-                    foreach (var section in request.Sections)
-                        _userManager.AddHomeSection(internalId, CopySectionWithoutId(section), CancellationToken.None);
-                }
-
-                // Mappa gamla IDs → nya IDs och uppdatera HomeSectionTracked i plugin-konfig
-                // så att nästa synk hittar rätt sektion istället för att skapa duplicat.
-                var afterSections = _userManager.GetHomeSections(internalId, CancellationToken.None);
-                var newIds = (afterSections?.Sections ?? Array.Empty<ContentSection>())
+                // 2. Ordna om kvarvarande sektioner via MoveHomeSections — IDs förändras inte,
+                //    så HomeSectionTracked behöver inte uppdateras för omordning.
+                var orderedIds = requestedSections
                     .Where(s => !string.IsNullOrEmpty(s.Id))
                     .Select(s => s.Id)
                     .ToArray();
 
-                // Bygg en dictionary: gammalt ID → nytt ID (positionsbaserat)
-                var idRemap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                for (int i = 0; i < oldIds.Length && i < newIds.Length; i++)
+                var allMoveMethods = FindMethodsInHierarchy(_userManager, "MoveHomeSections");
+
+                // Signatur: MoveHomeSections(Int64 userId, String[] sectionIds, Int32 newIndex, CancellationToken)
+                // Anropas en gång per sektion med ett enda ID i arrayen.
+                var moveMethod = allMoveMethods.FirstOrDefault(m => {
+                    var ps = m.GetParameters();
+                    return ps.Length == 4
+                        && ps[1].ParameterType == typeof(string[])
+                        && ps[2].ParameterType == typeof(int)
+                        && ps[3].ParameterType == typeof(CancellationToken);
+                });
+                // Fallback utan CancellationToken: (Int64, String[], Int32)
+                if (moveMethod == null)
+                    moveMethod = allMoveMethods.FirstOrDefault(m => {
+                        var ps = m.GetParameters();
+                        return ps.Length == 3
+                            && ps[1].ParameterType == typeof(string[])
+                            && ps[2].ParameterType == typeof(int);
+                    });
+
+                string moveDebug = $"MoveHomeSections candidates: {allMoveMethods.Count}";
+                if (allMoveMethods.Count > 0)
+                    moveDebug += " | " + string.Join("; ", allMoveMethods.Select(m =>
+                        m.Name + "(" + string.Join(",", m.GetParameters().Select(p => p.ParameterType.Name)) + ")"));
+
+                if (moveMethod != null)
                 {
-                    if (!string.IsNullOrEmpty(oldIds[i]) && !string.IsNullOrEmpty(newIds[i]))
-                        idRemap[oldIds[i]] = newIds[i];
+                    bool withToken = moveMethod.GetParameters().Length == 4;
+                    for (int i = 0; i < orderedIds.Length; i++)
+                    {
+                        try
+                        {
+                            var args = withToken
+                                ? new object[] { internalId, new[] { orderedIds[i] }, i, CancellationToken.None }
+                                : new object[] { internalId, new[] { orderedIds[i] }, i };
+                            moveMethod.Invoke(_userManager, args);
+                        }
+                        catch (Exception ex) { moveDebug += $" | move[{i}] error: " + ex.Message; break; }
+                    }
                 }
 
-                if (idRemap.Count > 0)
+                // 3. Ta bort tracking för raderade sektioner så att task re-skapar dem vid behov
+                if (toDelete.Length > 0)
                 {
+                    var deletedSet = new HashSet<string>(toDelete, StringComparer.OrdinalIgnoreCase);
                     var pluginConfig = Plugin.Instance?.Configuration;
                     if (pluginConfig != null)
                     {
                         bool changed = false;
                         foreach (var tag in pluginConfig.Tags)
                         {
-                            foreach (var tracked in tag.HomeSectionTracked)
-                            {
-                                if (!string.IsNullOrEmpty(tracked.SectionId) &&
-                                    idRemap.TryGetValue(tracked.SectionId, out var newId))
-                                {
-                                    tracked.SectionId = newId;
-                                    changed = true;
-                                }
-                            }
+                            var toRemove = tag.HomeSectionTracked
+                                .Where(t => !string.IsNullOrEmpty(t.SectionId) && deletedSet.Contains(t.SectionId))
+                                .ToList();
+                            foreach (var t in toRemove) { tag.HomeSectionTracked.Remove(t); changed = true; }
                         }
                         if (changed)
                             Plugin.Instance?.SaveConfiguration();
                     }
                 }
 
-                return new HscSaveUserSectionsResponse { Success = true };
+                return new HscSaveUserSectionsResponse { Success = true, Message = moveDebug };
             }
             catch (Exception ex)
             {

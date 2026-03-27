@@ -95,6 +95,9 @@ namespace HomeScreenCompanion
     [MediaBrowser.Model.Services.Route("/HomeScreenCompanion/Hsc/SectionSchema", "GET")]
     public class HscGetSectionSchemaRequest : MediaBrowser.Model.Services.IReturn<HscSectionSchemaResponse> { }
 
+    [MediaBrowser.Model.Services.Route("/HomeScreenCompanion/Hsc/DebugMethods", "GET")]
+    public class HscDebugMethodsRequest : MediaBrowser.Model.Services.IReturn<string> { }
+
     public class HscSectionSchemaResponse
     {
         public List<HscSectionField> Fields { get; set; } = new List<HscSectionField>();
