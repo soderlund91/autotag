@@ -224,6 +224,45 @@ namespace HomeScreenCompanion
                     }
                 }
 
+                var collectionMembershipCache = new Dictionary<string, HashSet<long>>(StringComparer.OrdinalIgnoreCase);
+                {
+                    var allCollPlCriteria = config.Tags
+                        .Where(t => t.Active && t.SourceType == "MediaInfo")
+                        .SelectMany(t => GetAllCriteria(t))
+                        .Select(c => c.Length > 0 && c[0] == '!' ? c.Substring(1) : c)
+                        .Where(c => c.StartsWith("Collection:", StringComparison.OrdinalIgnoreCase) || c.StartsWith("Playlist:", StringComparison.OrdinalIgnoreCase))
+                        .Distinct(StringComparer.OrdinalIgnoreCase);
+                    foreach (var crit in allCollPlCriteria)
+                    {
+                        if (collectionMembershipCache.ContainsKey(crit)) continue;
+                        var colonIdx = crit.IndexOf(':');
+                        var sourceKind = crit.Substring(0, colonIdx);
+                        var sourceName = crit.Substring(colonIdx + 1).Trim();
+                        string[] folderTypes = sourceKind.Equals("Playlist", StringComparison.OrdinalIgnoreCase)
+                            ? new[] { "Playlist" } : new[] { "BoxSet" };
+                        var folder = _libraryManager.GetItemList(new InternalItemsQuery
+                        {
+                            IncludeItemTypes = folderTypes,
+                            Recursive = true
+                        }).FirstOrDefault(i => string.Equals(i.Name, sourceName, StringComparison.OrdinalIgnoreCase));
+                        if (folder == null) { collectionMembershipCache[crit] = new HashSet<long>(); continue; }
+                        var members = sourceKind.Equals("Playlist", StringComparison.OrdinalIgnoreCase)
+                            ? _libraryManager.GetItemList(new InternalItemsQuery { ListIds = new[] { folder.InternalId } })
+                            : _libraryManager.GetItemList(new InternalItemsQuery { CollectionIds = new[] { folder.InternalId }, IsVirtualItem = false });
+                        var ids = new HashSet<long>();
+                        foreach (var m in members)
+                        {
+                            ids.Add(m.InternalId);
+                            if (m.GetType().Name.Contains("Series"))
+                            {
+                                foreach (var ep in _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { "Episode" }, Parent = m, Recursive = true, IsVirtualItem = false }))
+                                    ids.Add(ep.InternalId);
+                            }
+                        }
+                        collectionMembershipCache[crit] = ids;
+                    }
+                }
+
                 var mediaInfoCache = new Dictionary<long, CachedMediaInfo>();
                 if (config.Tags.Any(t => t.Active && t.SourceType == "MediaInfo"))
                 {
@@ -483,7 +522,7 @@ namespace HomeScreenCompanion
                                 if (!string.IsNullOrEmpty(imdb) && blacklist.Contains(imdb)) continue;
 
                                 CachedMediaInfo? ci = mediaInfoCache.TryGetValue(item.InternalId, out var ciVal) ? ciVal : (CachedMediaInfo?)null;
-                                if (ItemMatchesMediaInfo(item, tagConfig, debug, seriesEpisodeCache, personCache, userDataCache, ci, preloadedUsers, seriesLastPlayedCache))
+                                if (ItemMatchesMediaInfo(item, tagConfig, debug, seriesEpisodeCache, personCache, userDataCache, ci, preloadedUsers, seriesLastPlayedCache, collectionMembershipCache))
                                 {
                                     matchedLocalItems.Add(item);
                                     if (effectiveLimit < 10000 && matchedLocalItems.Count >= effectiveLimit) break;
@@ -1076,6 +1115,7 @@ namespace HomeScreenCompanion
 
             var seriesEpisodeCache = new Dictionary<long, BaseItem>();
             var personCache = new Dictionary<string, HashSet<long>>(StringComparer.OrdinalIgnoreCase);
+            var collectionMembershipCache = new Dictionary<string, HashSet<long>>(StringComparer.OrdinalIgnoreCase);
             var mediaInfoCache = new Dictionary<long, CachedMediaInfo>();
             var userDataCache = new Dictionary<(Guid, long), (bool Played, DateTimeOffset? LastPlayedDate, int PlayCount)>();
             var seriesLastPlayedCache = new Dictionary<(Guid, long), DateTimeOffset?>();
@@ -1120,6 +1160,39 @@ namespace HomeScreenCompanion
                     if (item.LocationType != LocationType.FileSystem) continue;
                     var resolved = ResolveItemForMediaInfo(item, seriesEpisodeCache);
                     mediaInfoCache[item.InternalId] = ExtractMediaInfo(resolved);
+                }
+                var singleTagCollPlCriteria = GetAllCriteria(tagConfig)
+                    .Select(c => c.Length > 0 && c[0] == '!' ? c.Substring(1) : c)
+                    .Where(c => c.StartsWith("Collection:", StringComparison.OrdinalIgnoreCase) || c.StartsWith("Playlist:", StringComparison.OrdinalIgnoreCase))
+                    .Distinct(StringComparer.OrdinalIgnoreCase);
+                foreach (var crit in singleTagCollPlCriteria)
+                {
+                    if (collectionMembershipCache.ContainsKey(crit)) continue;
+                    var colonIdx = crit.IndexOf(':');
+                    var sourceKind = crit.Substring(0, colonIdx);
+                    var sourceName = crit.Substring(colonIdx + 1).Trim();
+                    string[] folderTypes = sourceKind.Equals("Playlist", StringComparison.OrdinalIgnoreCase)
+                        ? new[] { "Playlist" } : new[] { "BoxSet" };
+                    var folder = _libraryManager.GetItemList(new InternalItemsQuery
+                    {
+                        IncludeItemTypes = folderTypes,
+                        Recursive = true
+                    }).FirstOrDefault(i => string.Equals(i.Name, sourceName, StringComparison.OrdinalIgnoreCase));
+                    if (folder == null) { collectionMembershipCache[crit] = new HashSet<long>(); continue; }
+                    var members = sourceKind.Equals("Playlist", StringComparison.OrdinalIgnoreCase)
+                        ? _libraryManager.GetItemList(new InternalItemsQuery { ListIds = new[] { folder.InternalId } })
+                        : _libraryManager.GetItemList(new InternalItemsQuery { CollectionIds = new[] { folder.InternalId }, IsVirtualItem = false });
+                    var ids = new HashSet<long>();
+                    foreach (var m in members)
+                    {
+                        ids.Add(m.InternalId);
+                        if (m.GetType().Name.Contains("Series"))
+                        {
+                            foreach (var ep in _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { "Episode" }, Parent = m, Recursive = true, IsVirtualItem = false }))
+                                ids.Add(ep.InternalId);
+                        }
+                    }
+                    collectionMembershipCache[crit] = ids;
                 }
             }
 
@@ -1203,7 +1276,7 @@ namespace HomeScreenCompanion
                         var imdb = item.GetProviderId("Imdb");
                         if (!string.IsNullOrEmpty(imdb) && blacklist.Contains(imdb)) continue;
                         CachedMediaInfo? ci = mediaInfoCache.TryGetValue(item.InternalId, out var ciVal) ? ciVal : (CachedMediaInfo?)null;
-                        if (ItemMatchesMediaInfo(item, tagConfig, debug, seriesEpisodeCache, personCache, userDataCache, ci, preloadedUsers, seriesLastPlayedCache))
+                        if (ItemMatchesMediaInfo(item, tagConfig, debug, seriesEpisodeCache, personCache, userDataCache, ci, preloadedUsers, seriesLastPlayedCache, collectionMembershipCache))
                         {
                             matchedLocalItems.Add(item);
                             if (effectiveLimit < 10000 && matchedLocalItems.Count >= effectiveLimit) break;
@@ -1357,7 +1430,7 @@ namespace HomeScreenCompanion
                         foreach (var ep in _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { "Episode" }, Recursive = true, IsVirtualItem = false }))
                         {
                             if (ep.LocationType != LocationType.FileSystem) continue;
-                            if (ItemMatchesMediaInfo(ep, tagConfig, debug, seriesEpisodeCache, personCache, userDataCache, null, preloadedUsers, seriesLastPlayedCache))
+                            if (ItemMatchesMediaInfo(ep, tagConfig, debug, seriesEpisodeCache, personCache, userDataCache, null, preloadedUsers, seriesLastPlayedCache, collectionMembershipCache))
                             {
                                 matchedEpisodeIds.Add(ep.Id);
                                 allEpisodeItemsMap.TryAdd(ep.Id, ep);
@@ -1413,7 +1486,7 @@ namespace HomeScreenCompanion
                     {
                         var matchingEpisodes = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { "Episode" }, Recursive = true, IsVirtualItem = false })
                             .Where(ep => ep.LocationType == LocationType.FileSystem
-                                      && ItemMatchesMediaInfo(ep, tagConfig, debug, seriesEpisodeCache, personCache, userDataCache, null, preloadedUsers, seriesLastPlayedCache))
+                                      && ItemMatchesMediaInfo(ep, tagConfig, debug, seriesEpisodeCache, personCache, userDataCache, null, preloadedUsers, seriesLastPlayedCache, collectionMembershipCache))
                             .ToList();
                         foreach (var season in ResolveParentSeasons(matchingEpisodes))
                         {
@@ -2088,7 +2161,8 @@ namespace HomeScreenCompanion
             Dictionary<(Guid, long), (bool Played, DateTimeOffset? LastPlayedDate, int PlayCount)>? userDataCache = null,
             CachedMediaInfo? cachedInfo = null,
             User[]? preloadedUsers = null,
-            Dictionary<(Guid, long), DateTimeOffset?>? seriesLastPlayedCache = null)
+            Dictionary<(Guid, long), DateTimeOffset?>? seriesLastPlayedCache = null,
+            Dictionary<string, HashSet<long>>? collectionMembershipCache = null)
         {
             var filters = tagConfig.MediaInfoFilters;
             var legacy = tagConfig.MediaInfoConditions;
@@ -2171,7 +2245,8 @@ namespace HomeScreenCompanion
                     isHevc, isAv1, isH264, isHdr, isHdr10, isDv, isAtmos, isTrueHd, isDtsHdMa, isDts,
                     isAc3, isAac, is51, is71, isStereo, isMono, personCache, audioLanguages, mediaType, itemTags,
                     userDataCache, cachedDateModifiedDays, cachedFileSizeMb, preloadedUsers, seriesLastPlayedCache,
-                    cachedBitRate, cachedSampleRate, cachedBitsPerSample, cachedTrackNumber, cachedDiscNumber);
+                    cachedBitRate, cachedSampleRate, cachedBitsPerSample, cachedTrackNumber, cachedDiscNumber,
+                    collectionMembershipCache);
                 bool EvalGroup(MediaInfoFilter f)
                 {
                     if (f.Criteria == null || f.Criteria.Count == 0) return true;
@@ -2193,7 +2268,8 @@ namespace HomeScreenCompanion
                 if (!EvaluateCriterion(cond, itemToCheck, is4k, is1080, is720, is8k, isSd, isHevc, isAv1, isH264,
                     isHdr, isHdr10, isDv, isAtmos, isTrueHd, isDtsHdMa, isDts, isAc3, isAac, is51, is71, isStereo, isMono,
                     personCache, audioLanguages, mediaType, itemTags, userDataCache, cachedDateModifiedDays, cachedFileSizeMb,
-                    preloadedUsers, seriesLastPlayedCache, cachedBitRate, cachedSampleRate, cachedBitsPerSample, cachedTrackNumber, cachedDiscNumber))
+                    preloadedUsers, seriesLastPlayedCache, cachedBitRate, cachedSampleRate, cachedBitsPerSample, cachedTrackNumber,
+                    cachedDiscNumber, collectionMembershipCache))
                     return false;
             }
             return true;
@@ -2217,7 +2293,8 @@ namespace HomeScreenCompanion
             double? cachedSampleRate = null,
             double? cachedBitsPerSample = null,
             double? cachedTrackNumber = null,
-            double? cachedDiscNumber = null)
+            double? cachedDiscNumber = null,
+            Dictionary<string, HashSet<long>>? collectionMembershipCache = null)
         {
             bool negate = cond.Length > 0 && cond[0] == '!';
             if (negate) cond = cond.Substring(1);
@@ -2249,6 +2326,8 @@ namespace HomeScreenCompanion
                     "ImdbId"        => MatchesImdbId(item.GetProviderId("Imdb"), val),
                     "Artist"        => SplitCommaValues(val).Any(v => MatchesArtistOrAlbumArtist(item, v, false)),
                     "Album"         => SplitCommaValues(val).Any(v => MatchesAlbumTitle(item, v, false)),
+                    "Collection"    => collectionMembershipCache != null && SplitCommaValues(val).Any(n => collectionMembershipCache.TryGetValue("Collection:" + n, out var cIds) && cIds.Contains(item.InternalId)),
+                    "Playlist"      => collectionMembershipCache != null && SplitCommaValues(val).Any(n => collectionMembershipCache.TryGetValue("Playlist:" + n, out var pIds) && pIds.Contains(item.InternalId)),
                     _ => false
                 };
             }

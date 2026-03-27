@@ -847,7 +847,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         var groups = [
             { label: 'Video', props: [['Resolution','Resolution'], ['VideoCodec','Video Codec'], ['HDR','HDR']] },
             { label: 'Audio', props: [['AudioFormat','Audio Format'], ['AudioChannels','Audio Channels'], ['AudioLanguage','Audio Language']] },
-            { label: 'Content', props: [['MediaType','Media Type'], ['Tag','Tag'], ['Title','Title'], ['EpisodeTitle','Title (Episode)'], ['Overview','Overview'], ['Studio','Studio'], ['Genre','Genre'], ['Actor','Actor / Cast'], ['Director','Director'], ['Writer','Writer'], ['ContentRating','Content Rating'], ['ImdbId','IMDB ID']] },
+            { label: 'Content', props: [['MediaType','Media Type'], ['Tag','Tag'], ['Title','Title'], ['EpisodeTitle','Title (Episode)'], ['Overview','Overview'], ['Studio','Studio'], ['Genre','Genre'], ['Actor','Actor / Cast'], ['Director','Director'], ['Writer','Writer'], ['ContentRating','Content Rating'], ['ImdbId','IMDB ID'], ['Collection','In Collection'], ['Playlist','In Playlist']] },
             { label: 'Music', props: [['Artist','Artist'], ['Album','Album'], ['BitRate','Bit Rate (kbps)'], ['SampleRate','Sample Rate (Hz)'], ['BitsPerSample','Bit Depth'], ['TrackNumber','Track Number'], ['DiscNumber','Disc Number']] },
             { label: 'Metrics', props: [['CommunityRating','Community Rating'], ['Year','Year'], ['Runtime','Runtime (minutes)'], ['DateAdded','Date Added'], ['DateModified','Date Modified'], ['FileSize','File Size (MB)']] },
             { label: 'Activity', props: [['IsPlayed','Watched / Unwatched'], ['LastPlayed','Last Played'], ['PlayCount','Play Count'], ['WatchedByCount','Watched by (user count)']] }
@@ -873,6 +873,17 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             userHtml = '<select class="selMiUser" is="emby-select" style="flex:0 0 auto;min-width:110px;">' + uOpts + '</select>';
         }
         var unitLabel = MI_UNIT_LABELS[prop] ? '<span style="margin-left:4px;opacity:.7;white-space:nowrap;">' + MI_UNIT_LABELS[prop] + '</span>' : '';
+        if (prop === 'Collection' || prop === 'Playlist') {
+            var cpList = prop === 'Collection' ? cachedCollections : cachedPlaylists;
+            if (cpList.length > 0) {
+                var cpOpts = cpList.map(function (o) {
+                    var n = o.Name || '';
+                    return '<option value="' + n.replace(/"/g, '&quot;') + '"' + (n === savedVal ? ' selected' : '') + '>' + n + '</option>';
+                }).join('');
+                return '<select class="selMiValue" is="emby-select" style="flex:1;"><option value="">-- Select --</option>' + cpOpts + '</select>';
+            }
+            return '<input class="txtMiValue" is="emby-input" type="text" placeholder="' + (prop === 'Collection' ? 'Collection name' : 'Playlist name') + '" value="' + (savedVal || '').replace(/"/g, '&quot;') + '" style="flex:1;" />';
+        }
         if (prop === 'Tag') {
             var tagTextOp = savedOp || MI_TEXT_MATCH_DEFAULT['Tag'];
             var tagTextOpHtml = '<select class="selMiTextOp" is="emby-select" style="flex:0 0 100px;">' +
