@@ -3352,7 +3352,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             .then(function (result) {
                 if (btnSpan) btnSpan.textContent = origText;
                 if (result.Success) {
-                    if (result.Message) console.log('[HSC] Save debug:', result.Message);
                     window.Dashboard.alert('Home screen layout saved successfully!');
                 } else {
                     window.Dashboard.alert('Failed to save: ' + (result.Message || 'Unknown error'));
