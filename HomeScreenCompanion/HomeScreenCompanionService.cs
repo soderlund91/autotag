@@ -380,6 +380,11 @@ public class HomeScreenCompanionService : IService
 
                 var internalId = _userManager.GetInternalId(request.UserId);
 
+                // Spara gamla IDs i ordning (indexmatchad mot request.Sections)
+                var oldIds = (request.Sections ?? Array.Empty<ContentSection>())
+                    .Select(s => s.Id ?? "")
+                    .ToArray();
+
                 var existing = _userManager.GetHomeSections(internalId, CancellationToken.None);
                 if (existing?.Sections?.Length > 0)
                 {
@@ -395,6 +400,45 @@ public class HomeScreenCompanionService : IService
                 {
                     foreach (var section in request.Sections)
                         _userManager.AddHomeSection(internalId, CopySectionWithoutId(section), CancellationToken.None);
+                }
+
+                // Mappa gamla IDs → nya IDs och uppdatera HomeSectionTracked i plugin-konfig
+                // så att nästa synk hittar rätt sektion istället för att skapa duplicat.
+                var afterSections = _userManager.GetHomeSections(internalId, CancellationToken.None);
+                var newIds = (afterSections?.Sections ?? Array.Empty<ContentSection>())
+                    .Where(s => !string.IsNullOrEmpty(s.Id))
+                    .Select(s => s.Id)
+                    .ToArray();
+
+                // Bygg en dictionary: gammalt ID → nytt ID (positionsbaserat)
+                var idRemap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                for (int i = 0; i < oldIds.Length && i < newIds.Length; i++)
+                {
+                    if (!string.IsNullOrEmpty(oldIds[i]) && !string.IsNullOrEmpty(newIds[i]))
+                        idRemap[oldIds[i]] = newIds[i];
+                }
+
+                if (idRemap.Count > 0)
+                {
+                    var pluginConfig = Plugin.Instance?.Configuration;
+                    if (pluginConfig != null)
+                    {
+                        bool changed = false;
+                        foreach (var tag in pluginConfig.Tags)
+                        {
+                            foreach (var tracked in tag.HomeSectionTracked)
+                            {
+                                if (!string.IsNullOrEmpty(tracked.SectionId) &&
+                                    idRemap.TryGetValue(tracked.SectionId, out var newId))
+                                {
+                                    tracked.SectionId = newId;
+                                    changed = true;
+                                }
+                            }
+                        }
+                        if (changed)
+                            Plugin.Instance?.SaveConfiguration();
+                    }
                 }
 
                 return new HscSaveUserSectionsResponse { Success = true };

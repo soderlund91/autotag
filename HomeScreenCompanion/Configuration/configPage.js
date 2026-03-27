@@ -2354,9 +2354,18 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         var customNamePlaceholder = (defaultName || '').replace(/"/g, '&quot;');
         html += '<div style="margin-bottom:12px;"><input is="emby-input" type="text" class="hse-field-str" data-field="CustomName" label="Custom Title" value="' + customName + '" placeholder="' + customNamePlaceholder + '"/></div>';
 
+        var viewTypeVal = s.ViewType || 'cards';
+        html += '<div class="hse-items-only" style="margin-bottom:12px;"><label class="selectLabel">View Type</label>';
+        html += '<select is="emby-select" class="selHseViewType hse-field-str" data-field="ViewType" style="width:100%;">';
+        [['cards','Cards (default)'],['spotlight','Spotlight'],['list','List'],['buttons','Buttons']].forEach(function(o) {
+            html += '<option value="' + o[0] + '"' + (viewTypeVal === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+        });
+        html += '</select></div>';
+
         var imgTypeVal = s.ImageType || '';
+        var imgTypeDisabled = viewTypeVal !== 'cards';
         html += '<div style="margin-bottom:12px;"><label class="selectLabel">Image Type</label>';
-        html += '<select is="emby-select" class="hse-field-str" data-field="ImageType" style="width:100%;"><option value=""' + (imgTypeVal === '' ? ' selected' : '') + '>Auto</option>';
+        html += '<select is="emby-select" class="selHseImageType hse-field-str" data-field="ImageType" style="width:100%;"' + (imgTypeDisabled ? ' disabled' : '') + '><option value=""' + (imgTypeVal === '' ? ' selected' : '') + '>Auto</option>';
         ['Primary','Thumb'].forEach(function(o) { html += '<option value="' + o + '"' + (imgTypeVal === o ? ' selected' : '') + '>' + o + '</option>'; });
         html += '</select></div>';
 
@@ -2401,13 +2410,31 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         });
     }
 
+    function updateHseImageTypeState(tab) {
+        var stSel = tab.querySelector('.selHseSectionType');
+        var vtSel = tab.querySelector('.selHseViewType');
+        var imgSel = tab.querySelector('.selHseImageType');
+        if (!imgSel) return;
+        var isItems = !stSel || stSel.value !== 'boxset';
+        var isCards = !vtSel || vtSel.value === 'cards';
+        imgSel.disabled = isItems && !isCards;
+    }
+
     function wireHomeSectionTypeChange(tab) {
         var stSel = tab.querySelector('.selHseSectionType');
         if (!stSel) return;
         updateHseItemsOnlyVisibility(tab);
+        updateHseImageTypeState(tab);
         stSel.addEventListener('change', function() {
             updateHseItemsOnlyVisibility(tab);
+            updateHseImageTypeState(tab);
         });
+        var vtSel = tab.querySelector('.selHseViewType');
+        if (vtSel) {
+            vtSel.addEventListener('change', function() {
+                updateHseImageTypeState(tab);
+            });
+        }
     }
 
     // Hämta live ContentSection från Emby och spegla värdena i formuläret
@@ -2435,6 +2462,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 var fieldMap = {
                     SectionType:     section.SectionType || '',
                     CustomName:      section.CustomName || '',
+                    ViewType:        section.ViewType || 'cards',
                     ImageType:       section.ImageType || '',
                     SortBy:          section.SortBy || '',
                     SortOrder:       section.SortOrder || '',
@@ -2469,6 +2497,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 }
 
                 updateHseItemsOnlyVisibility(tab);
+                updateHseImageTypeState(tab);
             })
             .catch(function() {}); // ignorera nätverksfel tyst
     }
