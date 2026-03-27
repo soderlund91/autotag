@@ -875,14 +875,11 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         var unitLabel = MI_UNIT_LABELS[prop] ? '<span style="margin-left:4px;opacity:.7;white-space:nowrap;">' + MI_UNIT_LABELS[prop] + '</span>' : '';
         if (prop === 'Collection' || prop === 'Playlist') {
             var cpList = prop === 'Collection' ? cachedCollections : cachedPlaylists;
-            if (cpList.length > 0) {
-                var cpOpts = cpList.map(function (o) {
-                    var n = o.Name || '';
-                    return '<option value="' + n.replace(/"/g, '&quot;') + '"' + (n === savedVal ? ' selected' : '') + '>' + n + '</option>';
-                }).join('');
-                return '<select class="selMiValue" is="emby-select" style="flex:1;"><option value="">-- Select --</option>' + cpOpts + '</select>';
-            }
-            return '<input class="txtMiValue" is="emby-input" type="text" placeholder="' + (prop === 'Collection' ? 'Collection name' : 'Playlist name') + '" value="' + (savedVal || '').replace(/"/g, '&quot;') + '" style="flex:1;" />';
+            var cpOpts = cpList.map(function (o) {
+                var n = o.Name || '';
+                return '<option value="' + n.replace(/"/g, '&quot;') + '"' + (n === savedVal ? ' selected' : '') + '>' + n + '</option>';
+            }).join('');
+            return '<select class="selMiValue" is="emby-select" style="flex:1;"><option value="">-- Select --</option>' + cpOpts + '</select>';
         }
         if (prop === 'Tag') {
             var tagTextOp = savedOp || MI_TEXT_MATCH_DEFAULT['Tag'];
@@ -1336,45 +1333,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                         <div style="margin-top:10px;"><button is="emby-button" type="button" class="raised btnAddLocal" style="width:100%; background:transparent; border:2px dashed rgba(128,128,128,0.4); color:var(--theme-text-secondary);"><i class="md-icon" style="margin-right:5px;">add</i>Add another</button></div>
                     </div>
 
-                    <div class="source-mediainfo-container" style="display: ${sourceType === 'MediaInfo' ? 'block' : 'none'};">
-                        <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap;">
-                            <label style="font-size:0.9em; white-space:nowrap; margin:0;">Max items</label>
-                            <input is="emby-input" class="txtMediaInfoLimit" type="number" value="${mediaInfoLimit}" min="0" style="width:90px;" />
-                            <button type="button" is="emby-button" class="btnMiHelp raised" style="margin-left:auto; background:transparent; border:1px solid rgba(128,128,128,0.35); color:var(--theme-text-secondary); font-size:0.82em; padding:0 10px; min-width:0;"><i class="md-icon" style="font-size:1em; margin-right:4px;">help_outline</i><span>How to (filter guide)</span></button>
-                        </div>
-                        <div class="mediainfo-filter-list">${filterGroupsHtml}</div>
-                        <div style="display:flex; gap:8px; margin-top:8px;">
-                            <button type="button" is="emby-button" class="btnAddMediaInfoFilter raised" style="flex:1; background:transparent; border:2px dashed rgba(128,128,128,0.4); color:var(--theme-text-secondary);"><i class="md-icon" style="margin-right:5px;">add</i>Add Filter</button>
-                            <button type="button" is="emby-button" class="btnClearAllFilters raised" style="background:transparent; border:2px dashed rgba(204,51,51,0.4); color:#cc3333; padding:0 14px; min-width:0;" title="Clear all filters"><i class="md-icon" style="font-size:1em;">delete_sweep</i></button>
-                        </div>
-                        <div style="margin-top:30px; border-top:1px solid var(--line-color); padding-top:12px;">
-                            <button type="button" is="emby-button" class="btnPremadeFilters raised btn-neutral" style="width:100%; margin-bottom:6px; background:transparent; border:1px solid var(--line-color); color:var(--theme-text-secondary); display:flex; align-items:center; justify-content:space-between;"><span><i class="md-icon" style="margin-right:5px;">auto_awesome</i>Premade filters</span><i class="md-icon mi-expand-icon" style="transition:transform 0.2s; font-size:1.2em;">expand_more</i></button>
-                            <div class="mi-preset-panel" style="display:none; border:1px solid var(--line-color); border-radius:6px; padding:10px 12px; margin-bottom:8px; background:rgba(128,128,128,0.06);">
-                                <div style="font-size:0.8em; color:var(--theme-text-secondary); margin-bottom:10px;">Select a preset to replace the current filters:</div>
-                                ${MI_PRESETS.map(function(cat, ci) {
-                                    return '<div style="margin-bottom:10px;">' +
-                                        '<div style="font-size:0.72em; text-transform:uppercase; letter-spacing:1px; color:var(--theme-text-secondary); margin-bottom:5px;">' + cat.label + '</div>' +
-                                        '<div style="display:flex; flex-wrap:wrap; gap:6px;">' +
-                                        cat.presets.map(function(p, pi) {
-                                            return '<button type="button" class="btnApplyMiPreset" data-preset="' + ci + ',' + pi + '"' +
-                                                ' style="border:1.5px solid #000; border-radius:14px; padding:4px 12px; font-size:0.82em; cursor:pointer; background:transparent; color:var(--theme-text-primary);">' + p.name + '</button>';
-                                        }).join('') + '</div></div>';
-                                }).join('')}
-                            </div>
-                            <button type="button" is="emby-button" class="btnMySavedFilters raised btn-neutral" style="width:100%; margin-bottom:6px; background:transparent; border:1px solid var(--line-color); color:var(--theme-text-secondary); display:flex; align-items:center; justify-content:space-between;"><span><i class="md-icon" style="margin-right:5px;">bookmarks</i>My saved filters</span><i class="md-icon mi-expand-icon" style="transition:transform 0.2s; font-size:1.2em;">expand_more</i></button>
-                            <div class="mi-saved-panel" style="display:none; border:1px solid var(--line-color); border-radius:6px; padding:10px 12px; margin-bottom:8px; background:rgba(128,128,128,0.06);">
-                                <div style="font-size:0.8em; color:var(--theme-text-secondary); margin-bottom:10px;">Select a saved filter to replace the current filters:</div>
-                                <div class="mi-saved-panel-content">${getMySavedFiltersPanelHtml()}</div>
-                                <div style="border-top:1px solid var(--line-color); margin:12px 0 10px;"></div>
-                                <div style="font-size:0.8em; color:var(--theme-text-secondary); margin-bottom:6px;">Save current filter as:</div>
-                                <div class="mi-saveas-bar" style="display:flex; gap:6px; align-items:flex-start;">
-                                    <input type="text" class="txtSaveFilterName emby-input" placeholder="Filter name..." style="flex:1; padding:4px 8px; font-size:0.85em;" />
-                                    <button type="button" is="emby-button" class="btnConfirmSaveFilter raised" style="background:var(--button-background); color:var(--button-foreground); flex-shrink:0;">Save</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     <div class="source-ai-container" style="display: ${sourceType === 'AI' ? 'block' : 'none'};">
                         <div style="margin-bottom: 15px;">
                             <label class="selectLabel">AI Provider</label>
@@ -1425,6 +1383,54 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                                 <i class="md-icon" style="margin-right:5px;">science</i>Test AI Source
                             </button>
                             <span class="ai-test-result" style="margin-left:10px; font-size:0.85em; opacity:0.7;"></span>
+                        </div>
+                    </div>
+
+                    <div class="source-mediainfo-container" style="display: ${sourceType && sourceType !== '' ? 'block' : 'none'};">
+                        <div class="mi-limit-row" style="display:${sourceType === 'MediaInfo' ? 'flex' : 'none'}; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap;">
+                            <label style="font-size:0.9em; white-space:nowrap; margin:0;">Max items</label>
+                            <input is="emby-input" class="txtMediaInfoLimit" type="number" value="${mediaInfoLimit}" min="0" style="width:90px;" />
+                            <button type="button" is="emby-button" class="btnMiHelp raised" style="margin-left:auto; background:transparent; border:1px solid rgba(128,128,128,0.35); color:var(--theme-text-secondary); font-size:0.82em; padding:0 10px; min-width:0;"><i class="md-icon" style="font-size:1em; margin-right:4px;">help_outline</i><span>How to (filter guide)</span></button>
+                        </div>
+                        <div class="mi-toggle-row" style="display:${sourceType === 'MediaInfo' || mediaFilters.length > 0 ? 'none' : 'block'}; padding-top:14px; border-top:1px solid var(--line-color);">
+                            <button type="button" is="emby-button" class="btnToggleAdditionalFilters raised" style="background:transparent; border:1px solid rgba(128,128,128,0.35); color:var(--theme-text-secondary); font-size:0.85em;"><i class="md-icon" style="font-size:1em; margin-right:4px;">filter_list</i><span>Add filters (optional)</span></button>
+                        </div>
+                        <div class="mi-filter-body" style="display:${sourceType === 'MediaInfo' || mediaFilters.length > 0 ? 'block' : 'none'};">
+                            <div class="mi-help-btn-row" style="display:${sourceType === 'MediaInfo' ? 'none' : 'flex'}; margin-bottom:14px; padding-top:14px; border-top:1px solid var(--line-color);">
+                                <button type="button" is="emby-button" class="btnMiHelp raised" style="margin-left:auto; background:transparent; border:1px solid rgba(128,128,128,0.35); color:var(--theme-text-secondary); font-size:0.82em; padding:0 10px; min-width:0;"><i class="md-icon" style="font-size:1em; margin-right:4px;">help_outline</i><span>How to (filter guide)</span></button>
+                            </div>
+                            <div class="mediainfo-filter-list">${filterGroupsHtml}</div>
+                            <div style="display:flex; gap:8px; margin-top:8px;">
+                                <button type="button" is="emby-button" class="btnAddMediaInfoFilter raised" style="flex:1; background:transparent; border:2px dashed rgba(128,128,128,0.4); color:var(--theme-text-secondary);"><i class="md-icon" style="margin-right:5px;">add</i>Add Filter Group</button>
+                                <button type="button" is="emby-button" class="btnClearAllFilters raised" style="background:transparent; border:2px dashed rgba(204,51,51,0.4); color:#cc3333; padding:0 14px; min-width:0;" title="Clear all filters"><i class="md-icon" style="font-size:1em;">delete_sweep</i></button>
+                            </div>
+                            ${sourceType === 'MediaInfo' ? `
+                            <div style="margin-top:30px; border-top:1px solid var(--line-color); padding-top:12px;">
+                                <button type="button" is="emby-button" class="btnPremadeFilters raised btn-neutral" style="width:100%; margin-bottom:6px; background:transparent; border:1px solid var(--line-color); color:var(--theme-text-secondary); display:flex; align-items:center; justify-content:space-between;"><span><i class="md-icon" style="margin-right:5px;">auto_awesome</i>Premade filters</span><i class="md-icon mi-expand-icon" style="transition:transform 0.2s; font-size:1.2em;">expand_more</i></button>
+                                <div class="mi-preset-panel" style="display:none; border:1px solid var(--line-color); border-radius:6px; padding:10px 12px; margin-bottom:8px; background:rgba(128,128,128,0.06);">
+                                    <div style="font-size:0.8em; color:var(--theme-text-secondary); margin-bottom:10px;">Select a preset to replace the current filters:</div>
+                                    ${MI_PRESETS.map(function(cat, ci) {
+                                        return '<div style="margin-bottom:10px;">' +
+                                            '<div style="font-size:0.72em; text-transform:uppercase; letter-spacing:1px; color:var(--theme-text-secondary); margin-bottom:5px;">' + cat.label + '</div>' +
+                                            '<div style="display:flex; flex-wrap:wrap; gap:6px;">' +
+                                            cat.presets.map(function(p, pi) {
+                                                return '<button type="button" class="btnApplyMiPreset" data-preset="' + ci + ',' + pi + '"' +
+                                                    ' style="border:1.5px solid #000; border-radius:14px; padding:4px 12px; font-size:0.82em; cursor:pointer; background:transparent; color:var(--theme-text-primary);">' + p.name + '</button>';
+                                            }).join('') + '</div></div>';
+                                    }).join('')}
+                                </div>
+                                <button type="button" is="emby-button" class="btnMySavedFilters raised btn-neutral" style="width:100%; margin-bottom:6px; background:transparent; border:1px solid var(--line-color); color:var(--theme-text-secondary); display:flex; align-items:center; justify-content:space-between;"><span><i class="md-icon" style="margin-right:5px;">bookmarks</i>My saved filters</span><i class="md-icon mi-expand-icon" style="transition:transform 0.2s; font-size:1.2em;">expand_more</i></button>
+                                <div class="mi-saved-panel" style="display:none; border:1px solid var(--line-color); border-radius:6px; padding:10px 12px; margin-bottom:8px; background:rgba(128,128,128,0.06);">
+                                    <div style="font-size:0.8em; color:var(--theme-text-secondary); margin-bottom:10px;">Select a saved filter to replace the current filters:</div>
+                                    <div class="mi-saved-panel-content">${getMySavedFiltersPanelHtml()}</div>
+                                    <div style="border-top:1px solid var(--line-color); margin:12px 0 10px;"></div>
+                                    <div style="font-size:0.8em; color:var(--theme-text-secondary); margin-bottom:6px;">Save current filter as:</div>
+                                    <div class="mi-saveas-bar" style="display:flex; gap:6px; align-items:flex-start;">
+                                        <input type="text" class="txtSaveFilterName emby-input" placeholder="Filter name..." style="flex:1; padding:4px 8px; font-size:0.85em;" />
+                                        <button type="button" is="emby-button" class="btnConfirmSaveFilter raised" style="background:var(--button-background); color:var(--button-foreground); flex-shrink:0;">Save</button>
+                                    </div>
+                                </div>
+                            </div>` : ''}
                         </div>
                     </div>
 
@@ -1658,13 +1664,27 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 var type = e.target.value;
                 row.querySelector('.source-external-container').style.display = type === 'External' ? 'block' : 'none';
                 row.querySelector('.source-local-container').style.display = (type === 'LocalCollection' || type === 'LocalPlaylist') ? 'block' : 'none';
-                row.querySelector('.source-mediainfo-container').style.display = type === 'MediaInfo' ? 'block' : 'none';
+                row.querySelector('.source-mediainfo-container').style.display = type ? 'block' : 'none';
                 row.querySelector('.source-ai-container').style.display = type === 'AI' ? 'block' : 'none';
 
                 var isMi = type === 'MediaInfo';
+                var miLimitRow   = row.querySelector('.mi-limit-row');
+                var miToggleRow  = row.querySelector('.mi-toggle-row');
+                var miFilterBody = row.querySelector('.mi-filter-body');
+                var miHelpBtnRow = row.querySelector('.mi-help-btn-row');
+                if (miLimitRow) miLimitRow.style.display = isMi ? 'flex' : 'none';
+                if (miHelpBtnRow) miHelpBtnRow.style.display = isMi ? 'none' : 'flex';
                 if (isMi) {
+                    if (miToggleRow)  miToggleRow.style.display  = 'none';
+                    if (miFilterBody) miFilterBody.style.display = 'block';
+                } else if (type) {
+                    var hasFilters = (row.querySelector('.mediainfo-filter-list')?.querySelectorAll('.mediainfo-filter-group').length ?? 0) > 0;
+                    if (miToggleRow)  miToggleRow.style.display  = hasFilters ? 'none'  : 'block';
+                    if (miFilterBody) miFilterBody.style.display = hasFilters ? 'block' : 'none';
+                }
+                if (type) {
                     var miList = row.querySelector('.mediainfo-filter-list');
-                    if (miList && miList.querySelectorAll('.mediainfo-filter-group').length === 0) {
+                    if (miList && isMi && miList.querySelectorAll('.mediainfo-filter-group').length === 0) {
                         miList.insertAdjacentHTML('beforeend', getMediaInfoFilterGroupHtml({ Operator: 'AND', Criteria: [], GroupOperator: 'AND' }, 0, true));
                     }
                 }
@@ -1780,10 +1800,6 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             updateBadges(row);
         });
 
-        row.querySelector('.btnMiHelp').addEventListener('click', () => {
-            document.getElementById('miHelpModalOverlay').classList.add('modal-visible');
-        });
-
         row.querySelector('.btnTagTargetHelp').addEventListener('click', () => {
             document.getElementById('tagTargetHelpModalOverlay').classList.add('modal-visible');
         });
@@ -1793,6 +1809,19 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         });
 
         row.addEventListener('click', e => {
+            if (e.target.closest('.btnMiHelp')) {
+                document.getElementById('miHelpModalOverlay').classList.add('modal-visible');
+                return;
+            }
+            if (e.target.closest('.btnToggleAdditionalFilters')) {
+                row.querySelector('.mi-toggle-row').style.display  = 'none';
+                row.querySelector('.mi-filter-body').style.display = 'block';
+                var miList = row.querySelector('.mediainfo-filter-list');
+                if (miList && miList.querySelectorAll('.mediainfo-filter-group').length === 0) {
+                    miList.insertAdjacentHTML('beforeend', getMediaInfoFilterGroupHtml({ Operator: 'AND', Criteria: [], GroupOperator: 'AND' }, 0, true));
+                }
+                return;
+            }
             if (e.target.closest('.btnRemoveUrl')) {
                 e.target.closest('.url-row').remove();
             }
@@ -3601,7 +3630,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
 
             Promise.all([
                 window.ApiClient.getJSON(window.ApiClient.getUrl("Users/" + window.ApiClient.getCurrentUserId() + "/Items", { IncludeItemTypes: "BoxSet", Recursive: true })),
-                window.ApiClient.getJSON(window.ApiClient.getUrl("Users/" + window.ApiClient.getCurrentUserId() + "/Items", { IncludeItemTypes: "Playlist", Recursive: true })),
+                window.ApiClient.getJSON(window.ApiClient.getUrl("Items", { IncludeItemTypes: "Playlist", Recursive: true })),
                 window.ApiClient.getJSON(window.ApiClient.getUrl("Items/Filters2", { UserId: window.ApiClient.getCurrentUserId(), Recursive: true })).catch(function () { return { Tags: [] }; })
             ]).then(responses => {
                 cachedCollections = responses[0].Items || [];

@@ -176,11 +176,11 @@ namespace HomeScreenCompanion
 
                 var personCache = new Dictionary<string, HashSet<long>>(StringComparer.OrdinalIgnoreCase);
                 {
-                    bool anyEpisodePersonCriteria = config.Tags.Any(t => t.Active && t.SourceType == "MediaInfo"
+                    bool anyEpisodePersonCriteria = config.Tags.Any(t => t.Active
                         && TagConfigTargetsEpisodes(t)
                         && GetAllCriteria(t).Any(c => { var s = c.TrimStart('!'); return s.StartsWith("Actor:") || s.StartsWith("Director:") || s.StartsWith("Writer:"); }));
                     var allPersonCriteria = config.Tags
-                        .Where(t => t.Active && t.SourceType == "MediaInfo")
+                        .Where(t => t.Active && (t.MediaInfoFilters?.Count > 0 || t.MediaInfoConditions?.Count > 0))
                         .SelectMany(t => (t.MediaInfoFilters ?? new List<MediaInfoFilter>())
                             .SelectMany(f => f.Criteria ?? new List<string>())
                             .Concat(t.MediaInfoConditions ?? new List<string>()))
@@ -227,7 +227,7 @@ namespace HomeScreenCompanion
                 var collectionMembershipCache = new Dictionary<string, HashSet<long>>(StringComparer.OrdinalIgnoreCase);
                 {
                     var allCollPlCriteria = config.Tags
-                        .Where(t => t.Active && t.SourceType == "MediaInfo")
+                        .Where(t => t.Active && (t.MediaInfoFilters?.Count > 0 || t.MediaInfoConditions?.Count > 0))
                         .SelectMany(t => GetAllCriteria(t))
                         .Select(c => c.Length > 0 && c[0] == '!' ? c.Substring(1) : c)
                         .Where(c => c.StartsWith("Collection:", StringComparison.OrdinalIgnoreCase) || c.StartsWith("Playlist:", StringComparison.OrdinalIgnoreCase))
@@ -236,6 +236,7 @@ namespace HomeScreenCompanion
                     {
                         if (collectionMembershipCache.ContainsKey(crit)) continue;
                         var colonIdx = crit.IndexOf(':');
+                        if (colonIdx < 1) continue;
                         var sourceKind = crit.Substring(0, colonIdx);
                         var sourceName = crit.Substring(colonIdx + 1).Trim();
                         string[] folderTypes = sourceKind.Equals("Playlist", StringComparison.OrdinalIgnoreCase)
@@ -264,7 +265,7 @@ namespace HomeScreenCompanion
                 }
 
                 var mediaInfoCache = new Dictionary<long, CachedMediaInfo>();
-                if (config.Tags.Any(t => t.Active && t.SourceType == "MediaInfo"))
+                if (config.Tags.Any(t => t.Active && (t.MediaInfoFilters?.Count > 0 || t.MediaInfoConditions?.Count > 0)))
                 {
                     foreach (var item in allItems)
                     {
@@ -493,7 +494,20 @@ namespace HomeScreenCompanion
                                     matchedLocalItems = matchedLocalItems.Take(effectiveLimit).ToList();
                             }
                         }
-                        else if (tagConfig.SourceType == "MediaInfo")
+                        // Apply MediaInfo post-filter for non-MediaInfo source types
+                        if (tagConfig.SourceType != "MediaInfo" && matchedLocalItems.Count > 0
+                            && (tagConfig.MediaInfoFilters?.Count > 0 || tagConfig.MediaInfoConditions?.Count > 0))
+                        {
+                            var beforeCount = matchedLocalItems.Count;
+                            matchedLocalItems = matchedLocalItems.Where(item =>
+                            {
+                                CachedMediaInfo? ci = mediaInfoCache.TryGetValue(item.InternalId, out var ciVal) ? ciVal : (CachedMediaInfo?)null;
+                                return ItemMatchesMediaInfo(item, tagConfig, debug, seriesEpisodeCache, personCache, userDataCache, ci, preloadedUsers, seriesLastPlayedCache, collectionMembershipCache);
+                            }).ToList();
+                            if (debug) LogDebug($"  MediaInfo post-filter: {beforeCount} → {matchedLocalItems.Count} items");
+                        }
+
+                        if (tagConfig.SourceType == "MediaInfo")
                         {
                             IList<BaseItem> itemsToScan;
                             if (TagConfigTargetsEpisodes(tagConfig))
@@ -1121,8 +1135,13 @@ namespace HomeScreenCompanion
             var seriesLastPlayedCache = new Dictionary<(Guid, long), DateTimeOffset?>();
             var preloadedUsers = _userManager.GetUserList(new UserQuery { IsDisabled = false });
 
-            if (tagConfig.SourceType == "MediaInfo")
+            var needsMediaInfoEval = tagConfig.SourceType == "MediaInfo"
+                || (tagConfig.MediaInfoFilters?.Count > 0 || tagConfig.MediaInfoConditions?.Count > 0);
+
+            if (needsMediaInfoEval)
             {
+                bool singleTagAnyEpisodePersonCriteria = TagConfigTargetsEpisodes(tagConfig)
+                    && GetAllCriteria(tagConfig).Any(c => { var s = c.TrimStart('!'); return s.StartsWith("Actor:") || s.StartsWith("Director:") || s.StartsWith("Writer:"); });
                 var allCriteria = (tagConfig.MediaInfoFilters ?? new List<MediaInfoFilter>())
                     .SelectMany(f => f.Criteria ?? new List<string>())
                     .Concat(tagConfig.MediaInfoConditions ?? new List<string>())
@@ -1143,12 +1162,17 @@ namespace HomeScreenCompanion
                             string indivKey = p.Length == 3 ? $"{p[0]}:{p[1]}:{singleName}" : $"{p[0]}:{singleName}";
                             if (personCache.ContainsKey(indivKey)) continue;
                             var personItem = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { "Person" }, Name = singleName }).FirstOrDefault();
+                            var personTypes = singleTagAnyEpisodePersonCriteria && p[0] == "Actor"
+                                ? new[] { personTypeEnum, MediaBrowser.Model.Entities.PersonType.GuestStar }
+                                : new[] { personTypeEnum };
                             personCache[indivKey] = personItem == null ? new HashSet<long>() :
                                 _libraryManager.GetItemList(new InternalItemsQuery
                                 {
                                     PersonIds = new[] { personItem.InternalId },
-                                    PersonTypes = new[] { personTypeEnum },
-                                    IncludeItemTypes = new[] { "Movie", "Series" },
+                                    PersonTypes = personTypes,
+                                    IncludeItemTypes = singleTagAnyEpisodePersonCriteria
+                                        ? new[] { "Movie", "Series", "Episode" }
+                                        : new[] { "Movie", "Series" },
                                     Recursive = true,
                                     IsVirtualItem = false
                                 }).Select(x => x.InternalId).ToHashSet();
@@ -1169,6 +1193,7 @@ namespace HomeScreenCompanion
                 {
                     if (collectionMembershipCache.ContainsKey(crit)) continue;
                     var colonIdx = crit.IndexOf(':');
+                    if (colonIdx < 1) continue;
                     var sourceKind = crit.Substring(0, colonIdx);
                     var sourceName = crit.Substring(colonIdx + 1).Trim();
                     string[] folderTypes = sourceKind.Equals("Playlist", StringComparison.OrdinalIgnoreCase)
@@ -1361,6 +1386,19 @@ namespace HomeScreenCompanion
                 LogSummary($"Error: {ex.Message}", "Error");
                 LastRunStatus = $"Failed: {ex.Message}";
                 return (false, $"Error: {ex.Message}");
+            }
+
+            // Apply MediaInfo post-filter for non-MediaInfo source types
+            if (tagConfig.SourceType != "MediaInfo" && matchedLocalItems.Count > 0
+                && (tagConfig.MediaInfoFilters?.Count > 0 || tagConfig.MediaInfoConditions?.Count > 0))
+            {
+                var beforeCount = matchedLocalItems.Count;
+                matchedLocalItems = matchedLocalItems.Where(item =>
+                {
+                    CachedMediaInfo? ci = mediaInfoCache.TryGetValue(item.InternalId, out var ciVal) ? ciVal : (CachedMediaInfo?)null;
+                    return ItemMatchesMediaInfo(item, tagConfig, debug, seriesEpisodeCache, personCache, userDataCache, ci, preloadedUsers, seriesLastPlayedCache, collectionMembershipCache);
+                }).ToList();
+                if (debug) LogDebug($"  MediaInfo post-filter: {beforeCount} → {matchedLocalItems.Count} items");
             }
 
             // For non-MediaInfo sources, apply output level selection (expand down from Series/Movie)
@@ -1789,35 +1827,39 @@ namespace HomeScreenCompanion
 
                         string trackId = sectionMarker;
 
-                        // Försök uppdatera via spårat ID
+                        // Hämta alla sektioner en gång — återanvänds för både ID-sökning och markör-fallback
+                        var currentSections = _userManager.GetHomeSections(userInternalId, cancellationToken);
+                        var allCurrentSections = currentSections?.Sections ?? Array.Empty<ContentSection>();
+
+                        // Hitta vår sektion: 1) via spårat ID, 2) via markör i Subtitle (skyddar mot att Emby tilldelar nytt ID vid omordning)
+                        ContentSection? ownedSection = null;
                         if (tracked != null && !string.IsNullOrEmpty(tracked.SectionId) && !tracked.SectionId.StartsWith("hsc__"))
+                            ownedSection = allCurrentSections.FirstOrDefault(s => s.Id == tracked.SectionId);
+                        if (ownedSection == null && !string.IsNullOrEmpty(sectionMarker))
+                            ownedSection = allCurrentSections.FirstOrDefault(s => s.Subtitle == sectionMarker);
+
+                        if (ownedSection != null)
                         {
                             try
                             {
                                 // Hämta befintlig sektion som bas — plugin-inställningar appliceras ovanpå utan att nollställa Emby-egna värden
-                                var existingSections = _userManager.GetHomeSections(userInternalId, cancellationToken);
-                                var existingSection = existingSections?.Sections?.FirstOrDefault(s => s.Id == tracked.SectionId);
-                                var updateSection = BuildContentSection(settingsDict, resolvedLibraryId, existingSection);
-                                typeof(ContentSection).GetProperty("Id")?.SetValue(updateSection, tracked.SectionId);
+                                var updateSection = BuildContentSection(settingsDict, resolvedLibraryId, ownedSection);
+                                typeof(ContentSection).GetProperty("Id")?.SetValue(updateSection, ownedSection.Id);
                                 _userManager.UpdateHomeSection(userInternalId, updateSection, cancellationToken);
-                                trackId = tracked.SectionId;
+                                trackId = ownedSection.Id ?? sectionMarker;
                                 goto _hsSectionDone;
                             }
                             catch
                             {
-                                // ID finns inte längre — fortsätt till skapande
+                                // Uppdatering misslyckades — fortsätt till skapande
                             }
                         }
 
-                        var newSection = BuildContentSection(settingsDict, resolvedLibraryId);
-
-                        // Skapa ny sektion
+                        // Sektion finns inte — skapa ny
                         {
-                            var beforeSections = _userManager.GetHomeSections(userInternalId, cancellationToken);
                             var beforeIds = new HashSet<string>(
-                                (beforeSections?.Sections ?? Array.Empty<ContentSection>())
-                                    .Where(s => !string.IsNullOrEmpty(s.Id)).Select(s => s.Id));
-                            _userManager.AddHomeSection(userInternalId, newSection, cancellationToken);
+                                allCurrentSections.Where(s => !string.IsNullOrEmpty(s.Id)).Select(s => s.Id));
+                            _userManager.AddHomeSection(userInternalId, BuildContentSection(settingsDict, resolvedLibraryId), cancellationToken);
                             var afterSections = _userManager.GetHomeSections(userInternalId, cancellationToken);
                             var newId = (afterSections?.Sections ?? Array.Empty<ContentSection>())
                                 .Where(s => !string.IsNullOrEmpty(s.Id) && !beforeIds.Contains(s.Id))
