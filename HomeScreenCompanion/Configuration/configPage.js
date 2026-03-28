@@ -2254,6 +2254,8 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 window.Dashboard.alert('Error fetching image. Check the URL and server logs.');
             });
         });
+
+        setTimeout(function () { updateHseSectionAvailability(row); }, 0);
     }
 
 
