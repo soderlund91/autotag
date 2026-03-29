@@ -105,6 +105,10 @@ namespace HomeScreenCompanion
     public class DeleteManagedTagRequest : IReturn<DeleteManagedTagResponse> { public string TagName { get; set; } = ""; }
     public class DeleteManagedTagResponse { public bool Success { get; set; } public string Message { get; set; } = ""; public int ItemsUpdated { get; set; } }
 
+    [Route("/HomeScreenCompanion/Manage/DeleteTags", "POST")]
+    public class DeleteManagedTagsBatchRequest : IReturn<DeleteManagedTagsResponse> { public List<string> TagNames { get; set; } = new List<string>(); }
+    public class DeleteManagedTagsResponse { public bool Success { get; set; } public int ItemsUpdated { get; set; } }
+
     [Route("/HomeScreenCompanion/Manage/DeleteCollection", "POST")]
     public class DeleteManagedCollectionRequest : IReturn<DeleteManagedCollectionResponse> { public string CollectionId { get; set; } = ""; }
     public class DeleteManagedCollectionResponse { public bool Success { get; set; } public string Message { get; set; } = ""; }
@@ -605,6 +609,44 @@ public class HomeScreenCompanionService : IService
                 catch { /* best effort */ }
             }
             return new DeleteManagedTagResponse { Success = true, ItemsUpdated = updated };
+        }
+
+        public object Post(DeleteManagedTagsBatchRequest request)
+        {
+            var tagNames = (request.TagNames ?? new List<string>())
+                .Select(t => t?.Trim()).Where(t => !string.IsNullOrEmpty(t)).ToList();
+
+            if (tagNames.Count == 0)
+                return new DeleteManagedTagsResponse { Success = true };
+
+            foreach (var tag in tagNames)
+                TagCacheManager.Instance.RemoveTagFromAllEntries(tag);
+            TagCacheManager.Instance.Save();
+
+            var allItems = _libraryManager.GetItemList(new InternalItemsQuery
+            {
+                Recursive = true,
+                IsVirtualItem = false
+            });
+
+            int updated = 0;
+            foreach (var item in allItems)
+            {
+                if (item.Tags == null || item.Tags.Length == 0) continue;
+                bool changed = false;
+                foreach (var tag in tagNames)
+                {
+                    if (item.Tags.Any(t => string.Equals(t, tag, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        item.RemoveTag(tag);
+                        changed = true;
+                    }
+                }
+                if (!changed) continue;
+                try { _libraryManager.UpdateItem(item, item.Parent, ItemUpdateType.MetadataEdit, null); updated++; }
+                catch { /* best effort */ }
+            }
+            return new DeleteManagedTagsResponse { Success = true, ItemsUpdated = updated };
         }
 
         public object Post(DeleteManagedCollectionRequest request)

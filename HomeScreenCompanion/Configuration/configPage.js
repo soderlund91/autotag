@@ -3411,25 +3411,30 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                         });
 
                         var tok = window.ApiClient.accessToken();
-                        var promises = [];
 
-                        tagList.forEach(function (t) {
-                            promises.push(fetch(window.ApiClient.getUrl('HomeScreenCompanion/Manage/DeleteTag'), {
+                        // All tags in one batch request — avoids race conditions when items carry multiple managed tags
+                        var tagBatchPromise = tagList.length === 0 ? Promise.resolve() :
+                            fetch(window.ApiClient.getUrl('HomeScreenCompanion/Manage/DeleteTags'), {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', 'X-MediaBrowser-Token': tok },
-                                body: JSON.stringify({ TagName: t.name })
-                            }).then(function (r) { return r.json(); }));
-                        });
+                                body: JSON.stringify({ TagNames: tagList.map(function (t) { return t.name; }) })
+                            }).then(function (r) { return r.json(); });
 
+                        // Collections are independent — run sequentially after tags
+                        var collOps = [];
                         collList.forEach(function (c) {
-                            promises.push(fetch(window.ApiClient.getUrl('HomeScreenCompanion/Manage/DeleteCollection'), {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json', 'X-MediaBrowser-Token': tok },
-                                body: JSON.stringify({ CollectionId: c.id })
-                            }).then(function (r) { return r.json(); }));
+                            collOps.push(function () {
+                                return fetch(window.ApiClient.getUrl('HomeScreenCompanion/Manage/DeleteCollection'), {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', 'X-MediaBrowser-Token': tok },
+                                    body: JSON.stringify({ CollectionId: c.id })
+                                }).then(function (r) { return r.json(); });
+                            });
                         });
 
-                        Promise.all(promises).then(function () {
+                        tagBatchPromise.then(function () {
+                            return collOps.reduce(function (chain, op) { return chain.then(op); }, Promise.resolve());
+                        }).then(function () {
                             if (groupsToInactivate.size === 0) return Promise.resolve();
                             return window.ApiClient.getPluginConfiguration(pluginId).then(function (cfg) {
                                 groupsToInactivate.forEach(function (idx) {
