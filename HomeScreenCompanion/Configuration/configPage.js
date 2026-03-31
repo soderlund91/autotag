@@ -2396,6 +2396,14 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         });
         html += '</select></div>';
 
+        var displayModeVal = s.DisplayMode || '';
+        html += '<div style="margin-bottom:12px;"><label class="selectLabel">Show this section</label>';
+        html += '<select is="emby-select" class="hse-field-str" data-field="DisplayMode" style="width:100%;">';
+        html += '<option value=""'              + (displayModeVal === ''               ? ' selected' : '') + '>Always</option>';
+        html += '<option value="tv"'            + (displayModeVal === 'tv'             ? ' selected' : '') + '>When TV Display Mode is on</option>';
+        html += '<option value="mobile,desktop"'+ (displayModeVal === 'mobile,desktop' ? ' selected' : '') + '>When TV Display Mode is off</option>';
+        html += '</select></div>';
+
         var savedItemTypes = [];
         try { savedItemTypes = JSON.parse(s.ItemTypes || '[]'); } catch {}
         var savedItemTypesStr = savedItemTypes.length > 0 ? savedItemTypes.join(',') : 'Movie,Series';
@@ -2427,10 +2435,11 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         var customNamePlaceholder = (defaultName || '').replace(/"/g, '&quot;');
         html += '<div style="margin-bottom:12px;"><input is="emby-input" type="text" class="hse-field-str" data-field="CustomName" label="Custom Title" value="' + customName + '" placeholder="' + customNamePlaceholder + '"/></div>';
 
-        var viewTypeVal = s.ViewType || 'cards';
+        // Emby native uses "" for Cards (default); migrate old stored "cards" value
+        var viewTypeVal = (s.ViewType === 'cards' ? '' : s.ViewType) || '';
         html += '<div class="hse-items-only" style="margin-bottom:12px;"><label class="selectLabel">View Type</label>';
         html += '<select is="emby-select" class="selHseViewType hse-field-str" data-field="ViewType" style="width:100%;">';
-        [['cards','Cards (default)'],['spotlight','Spotlight'],['list','List'],['buttons','Buttons']].forEach(function(o) {
+        [['','Cards (default)'],['spotlight','Spotlight']].forEach(function(o) {
             html += '<option value="' + o[0] + '"' + (viewTypeVal === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
         });
         html += '</select></div>';
@@ -2446,8 +2455,15 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         html += '<div style="margin-bottom:12px;"><label class="selectLabel">Sort By</label>';
         html += '<select is="emby-select" class="hse-field-str" data-field="SortBy" style="width:100%;">';
         html += '<option value=""' + (sortByVal === '' ? ' selected' : '') + '>(Default)</option>';
-        [['CommunityRating','Rating'],['DateCreated','Date Added'],['SortName','Name'],
-         ['Runtime','Runtime'],['PremiereDate','Release Date'],['ProductionYear','Year'],['Random','Random']].forEach(function(o) {
+        [
+            ['CommunityRating,SortName',            'Rating'],
+            ['DateCreated,SortName',                'Date Added'],
+            ['SortName',                            'Name'],
+            ['Runtime,SortName',                    'Runtime'],
+            ['ProductionYear,PremiereDate,SortName','Release Date'],
+            ['ProductionYear,SortName',             'Year'],
+            ['Random',                              'Random']
+        ].forEach(function(o) {
             html += '<option value="' + o[0] + '"' + (sortByVal === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
         });
         html += '</select></div>';
@@ -2489,7 +2505,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         var imgSel = tab.querySelector('.selHseImageType');
         if (!imgSel) return;
         var isItems = !stSel || stSel.value !== 'boxset';
-        var isCards = !vtSel || vtSel.value === 'cards';
+        var isCards = !vtSel || vtSel.value === '' || vtSel.value === 'cards';
         imgSel.disabled = isItems && !isCards;
     }
 
@@ -2535,7 +2551,8 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 var fieldMap = {
                     SectionType:     section.SectionType || '',
                     CustomName:      section.CustomName || '',
-                    ViewType:        section.ViewType || 'cards',
+                    DisplayMode:     section.DisplayMode || '',
+                    ViewType:        section.ViewType || '',
                     ImageType:       section.ImageType || '',
                     SortBy:          section.SortBy || '',
                     SortOrder:       section.SortOrder || '',
@@ -2544,7 +2561,10 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                         if (sd === null || sd === undefined) return '';
                         if (typeof sd === 'number') return sd === 0 ? 'Horizontal' : sd === 1 ? 'Vertical' : '';
                         return String(sd);
-                    })()
+                    })(),
+                    '_queryIsPlayed': (section.Query != null && section.Query.IsPlayed === true) ? 'true'
+                                    : (section.Query != null && section.Query.IsUnplayed === true) ? 'false'
+                                    : ''
                 };
 
                 Object.keys(fieldMap).forEach(function(field) {
@@ -4199,6 +4219,22 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 originalConfigState = JSON.stringify(getUiConfig(view, true));
                 checkFormState();
                 updateDryRunWarning();
+
+                // Apply home section settings immediately for existing tracked sections (fire-and-forget)
+                configObj.Tags.forEach(function(tc) {
+                    if (!tc.EnableHomeSection) return;
+                    var hasTracked = (tc.HomeSectionTracked || []).some(function(t) {
+                        return t.SectionId && !t.SectionId.startsWith('hsc__');
+                    });
+                    if (!hasTracked) return;
+                    var applyUrl = window.ApiClient.getUrl('HomeScreenCompanion/Hsc/ApplyTagHomeSections');
+                    var tok = window.ApiClient.accessToken ? window.ApiClient.accessToken() : '';
+                    fetch(applyUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-Emby-Token': tok },
+                        body: JSON.stringify({ TagName: tc.Name || tc.Tag })
+                    }).catch(function() {});
+                });
             });
         });
 

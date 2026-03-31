@@ -155,6 +155,19 @@ namespace HomeScreenCompanion
         public string type { get; set; } = "";
     }
 
+    [MediaBrowser.Model.Services.Route("/HomeScreenCompanion/Hsc/ApplyTagHomeSections", "POST")]
+    public class HscApplyTagHomeSectionsRequest : MediaBrowser.Model.Services.IReturn<HscApplyTagHomeSectionsResponse>
+    {
+        public string TagName { get; set; } = "";
+    }
+
+    public class HscApplyTagHomeSectionsResponse
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; } = "";
+        public int UsersUpdated { get; set; }
+    }
+
     [MediaBrowser.Model.Services.Route("/HomeScreenCompanion/TestAiSource", "POST")]
     public class TestAiSourceRequest : MediaBrowser.Model.Services.IReturn<TestAiSourceResponse>
     {

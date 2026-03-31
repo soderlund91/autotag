@@ -501,6 +501,119 @@ public class HomeScreenCompanionService : IService
             }
         }
 
+        public object Post(HscApplyTagHomeSectionsRequest request)
+        {
+            try
+            {
+                var config = Plugin.Instance?.Configuration;
+                if (config == null)
+                    return new HscApplyTagHomeSectionsResponse { Success = false, Message = "Plugin configuration not available." };
+
+                var tc = config.Tags?.FirstOrDefault(t =>
+                    string.Equals(t.Name, request.TagName, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(t.Tag,  request.TagName, StringComparison.OrdinalIgnoreCase));
+
+                if (tc == null)
+                    return new HscApplyTagHomeSectionsResponse { Success = false, Message = $"Tag '{request.TagName}' not found." };
+
+                if (!tc.EnableHomeSection)
+                    return new HscApplyTagHomeSectionsResponse { Success = true, Message = "Home section not enabled for this tag." };
+
+                var realTracked = (tc.HomeSectionTracked ?? new System.Collections.Generic.List<HomeSectionTracking>())
+                    .Where(t => !string.IsNullOrEmpty(t.SectionId) && !t.SectionId.StartsWith("hsc__"))
+                    .ToList();
+                if (realTracked.Count == 0)
+                    return new HscApplyTagHomeSectionsResponse { Success = true, Message = "No existing tracked sections — nothing to apply." };
+
+                // Deserialize settings
+                var settingsDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                try
+                {
+                    if (!string.IsNullOrEmpty(tc.HomeSectionSettings) && tc.HomeSectionSettings != "{}")
+                        settingsDict = _jsonSerializer.DeserializeFromString<Dictionary<string, string>>(tc.HomeSectionSettings) ?? settingsDict;
+                }
+                catch { }
+
+                if (!settingsDict.ContainsKey("SectionType"))
+                    settingsDict["SectionType"] = (tc.EnableCollection && !string.IsNullOrEmpty(tc.CollectionName)) ? "boxset" : "items";
+
+                settingsDict.TryGetValue("SectionType", out var sectionType);
+
+                // Resolve library ID
+                string resolvedLibraryId = null;
+                if (sectionType == "boxset")
+                {
+                    if (tc.HomeSectionLibraryId == "auto")
+                    {
+                        if (tc.EnableCollection && !string.IsNullOrEmpty(tc.CollectionName))
+                        {
+                            var coll = _libraryManager.GetItemList(new MediaBrowser.Controller.Entities.InternalItemsQuery
+                            {
+                                IncludeItemTypes = new[] { "BoxSet" },
+                                Name = tc.CollectionName,
+                                Recursive = true
+                            }).FirstOrDefault();
+                            if (coll != null) resolvedLibraryId = coll.InternalId.ToString();
+                        }
+                    }
+                    else if (!string.IsNullOrEmpty(tc.HomeSectionLibraryId))
+                    {
+                        resolvedLibraryId = tc.HomeSectionLibraryId;
+                    }
+                    if (string.IsNullOrEmpty(resolvedLibraryId))
+                        return new HscApplyTagHomeSectionsResponse { Success = false, Message = "Collection not found — cannot apply." };
+                }
+
+                // Look up tag ID for query (items type)
+                if (sectionType == "items" && !string.IsNullOrEmpty(tc.Tag))
+                {
+                    var tagItem = _libraryManager.GetItemList(new MediaBrowser.Controller.Entities.InternalItemsQuery
+                    {
+                        IncludeItemTypes = new[] { "Tag" },
+                        Name = tc.Tag,
+                        Recursive = true
+                    }).FirstOrDefault();
+                    if (tagItem != null) settingsDict["_queryTagId"] = tagItem.InternalId.ToString();
+                }
+
+                // Build section marker (same pattern as the task)
+                var safeTag = new string((tc.Name ?? tc.Tag ?? "").Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
+                var sectionMarker = "hsc__" + safeTag;
+
+                int updated = 0;
+                foreach (var userId in (tc.HomeSectionUserIds ?? new System.Collections.Generic.List<string>()))
+                {
+                    var tracking = realTracked.FirstOrDefault(t => t.UserId == userId);
+                    if (tracking == null) continue; // no real tracked section for this user
+
+                    try
+                    {
+                        var userInternalId = _userManager.GetInternalId(userId);
+                        var currentSections = _userManager.GetHomeSections(userInternalId, CancellationToken.None);
+                        var allSections = currentSections?.Sections ?? Array.Empty<ContentSection>();
+
+                        ContentSection ownedSection =
+                            allSections.FirstOrDefault(s => s.Id == tracking.SectionId) ??
+                            allSections.FirstOrDefault(s => s.Subtitle == sectionMarker);
+
+                        if (ownedSection == null) continue;
+
+                        var updatedSection = HomeScreenCompanionTask.BuildContentSection(_jsonSerializer, settingsDict, resolvedLibraryId, ownedSection);
+                        typeof(ContentSection).GetProperty("Id")?.SetValue(updatedSection, ownedSection.Id);
+                        _userManager.UpdateHomeSection(userInternalId, updatedSection, CancellationToken.None);
+                        updated++;
+                    }
+                    catch { /* skip this user on error */ }
+                }
+
+                return new HscApplyTagHomeSectionsResponse { Success = true, UsersUpdated = updated, Message = $"Applied to {updated} user(s)." };
+            }
+            catch (Exception ex)
+            {
+                return new HscApplyTagHomeSectionsResponse { Success = false, Message = ex.Message };
+            }
+        }
+
         private static ContentSection CopySectionWithoutId(ContentSection source)
         {
             var copy = new ContentSection();

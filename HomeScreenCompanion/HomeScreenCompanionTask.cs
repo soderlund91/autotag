@@ -51,10 +51,11 @@ namespace HomeScreenCompanion
             public int? DiscNumber;    // ParentIndexNumber on the item
         }
 
-        // Utökar ItemsQuery med IsPlayed så att Embys JSON-serialisering inkluderar fältet
+        // Utökar ItemsQuery med IsPlayed/IsUnplayed så att Embys JSON-serialisering inkluderar fälten
         private class ExtendedItemsQuery : ItemsQuery
         {
             public bool? IsPlayed { get; set; }
+            public bool? IsUnplayed { get; set; }
         }
 
         private class GroupRunStats
@@ -2080,7 +2081,7 @@ namespace HomeScreenCompanion
                             try
                             {
                                 // Hämta befintlig sektion som bas — plugin-inställningar appliceras ovanpå utan att nollställa Emby-egna värden
-                                var updateSection = BuildContentSection(settingsDict, resolvedLibraryId, ownedSection);
+                                var updateSection = BuildContentSection(_jsonSerializer, settingsDict, resolvedLibraryId, ownedSection);
                                 typeof(ContentSection).GetProperty("Id")?.SetValue(updateSection, ownedSection.Id);
                                 _userManager.UpdateHomeSection(userInternalId, updateSection, cancellationToken);
                                 trackId = ownedSection.Id ?? sectionMarker;
@@ -2096,7 +2097,7 @@ namespace HomeScreenCompanion
                         {
                             var beforeIds = new HashSet<string>(
                                 allCurrentSections.Where(s => !string.IsNullOrEmpty(s.Id)).Select(s => s.Id));
-                            _userManager.AddHomeSection(userInternalId, BuildContentSection(settingsDict, resolvedLibraryId), cancellationToken);
+                            _userManager.AddHomeSection(userInternalId, BuildContentSection(_jsonSerializer, settingsDict, resolvedLibraryId), cancellationToken);
                             var afterSections = _userManager.GetHomeSections(userInternalId, cancellationToken);
                             var newId = (afterSections?.Sections ?? Array.Empty<ContentSection>())
                                 .Where(s => !string.IsNullOrEmpty(s.Id) && !beforeIds.Contains(s.Id))
@@ -2181,7 +2182,7 @@ namespace HomeScreenCompanion
             catch { }
         }
 
-        private ContentSection BuildContentSection(Dictionary<string, string> settings, string libraryId, ContentSection existing = null)
+        internal static ContentSection BuildContentSection(IJsonSerializer jsonSerializer, Dictionary<string, string> settings, string libraryId, ContentSection existing = null)
         {
             var section = existing ?? new ContentSection();
             var props = typeof(ContentSection).GetProperties(BindingFlags.Public | BindingFlags.Instance);
@@ -2221,7 +2222,7 @@ namespace HomeScreenCompanion
                 try
                 {
                     var values = arrVal.TrimStart().StartsWith("[")
-                        ? _jsonSerializer.DeserializeFromString<string[]>(arrVal)
+                        ? jsonSerializer.DeserializeFromString<string[]>(arrVal)
                         : arrVal.Split(',').Select(s => s.Trim()).Where(s => s.Length > 0).ToArray();
                     prop.SetValue(section, values);
                 }
@@ -2245,13 +2246,25 @@ namespace HomeScreenCompanion
                             tagIdsProp.SetValue(extQuery, new[] { qTagId });
                     }
 
-                    // Specialfall: _queryIsPlayed → IsPlayed (bool?); tomt = Any = null
+                    // Specialfall: _queryIsPlayed → IsPlayed/IsUnplayed; tomt = Any = null
+                    // Emby använder IsPlayed=true för "Played" och IsUnplayed=true för "Unplayed" (separata flaggor)
                     if (settings.TryGetValue("_queryIsPlayed", out var qIsPlayed))
                     {
-                        if (!string.IsNullOrEmpty(qIsPlayed) && bool.TryParse(qIsPlayed, out var isPlayedBool))
-                            extQuery.IsPlayed = isPlayedBool;
-                        else
+                        if (qIsPlayed == "true")
+                        {
+                            extQuery.IsPlayed = true;
+                            extQuery.IsUnplayed = null;
+                        }
+                        else if (qIsPlayed == "false")
+                        {
                             extQuery.IsPlayed = null;
+                            extQuery.IsUnplayed = true;
+                        }
+                        else
+                        {
+                            extQuery.IsPlayed = null;
+                            extQuery.IsUnplayed = null;
+                        }
                     }
 
                     // Generisk _query* → övriga ItemsQuery-properties
