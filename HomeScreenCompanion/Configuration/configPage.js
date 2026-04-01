@@ -1685,6 +1685,12 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 row.querySelector('.advanced-tab').style.display = target === 'advanced' ? 'block' : 'none';
                 row.querySelector('.homescreen-tab').style.display = target === 'homescreen' ? 'block' : 'none';
                 if (target === 'homescreen') initHomeSectionTab(row);
+                var activeTabEl = row.querySelector('.' + target + '-tab');
+                if (activeTabEl) activeTabEl.querySelectorAll('textarea.txtMiValue, textarea.txtTagBlacklist').forEach(function(ta) {
+                    ta.style.height = 'auto';
+                    ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+                    ta.style.overflowY = ta.scrollHeight > 120 ? 'auto' : 'hidden';
+                });
             });
         });
 
@@ -1768,6 +1774,13 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             var isHidden = body.style.display === 'none';
             body.style.display = isHidden ? 'block' : 'none';
             icon.innerText = isHidden ? 'expand_less' : 'expand_more';
+            if (isHidden) {
+                body.querySelectorAll('textarea.txtMiValue, textarea.txtTagBlacklist').forEach(function(ta) {
+                    ta.style.height = 'auto';
+                    ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+                    ta.style.overflowY = ta.scrollHeight > 120 ? 'auto' : 'hidden';
+                });
+            }
         });
 
         var chk = row.querySelector('.chkTagActive'), lblStatus = row.querySelector('.lblActiveStatus');
@@ -2445,7 +2458,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         html += '</select></div>';
 
         var imgTypeVal = s.ImageType || '';
-        var imgTypeDisabled = viewTypeVal !== 'cards';
+        var imgTypeDisabled = viewTypeVal === 'spotlight';
         html += '<div style="margin-bottom:12px;"><label class="selectLabel">Image Type</label>';
         html += '<select is="emby-select" class="selHseImageType hse-field-str" data-field="ImageType" style="width:100%;"' + (imgTypeDisabled ? ' disabled' : '') + '><option value=""' + (imgTypeVal === '' ? ' selected' : '') + '>Auto</option>';
         ['Primary','Thumb'].forEach(function(o) { html += '<option value="' + o + '"' + (imgTypeVal === o ? ' selected' : '') + '>' + o + '</option>'; });
@@ -4098,53 +4111,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 cachedPlaylists = responses[1].Items || [];
                 cachedTags = ((responses[2] && responses[2].Tags) || []).slice().sort();
 
-                window.ApiClient.getPluginConfiguration(pluginId).then(config => {
-                    lastHscConfig = {
-                        HomeSyncEnabled:       config.HomeSyncEnabled       || false,
-                        HomeSyncLibraryOrder:  config.HomeSyncLibraryOrder  || false,
-                        HomeSyncSourceUserId:  config.HomeSyncSourceUserId  || '',
-                        HomeSyncTargetUserIds: config.HomeSyncTargetUserIds || []
-                    };
-                    savedFilters = config.SavedFilters || [];
-
-                    var container = view.querySelector('#tagListContainer'); container.innerHTML = '';
-                    view.querySelector('#txtTraktClientId').value = config.TraktClientId || '';
-                    view.querySelector('#txtMdblistApiKey').value = config.MdblistApiKey || '';
-                    var oaElInit = view.querySelector('#txtOpenAiApiKey'); if (oaElInit) oaElInit.value = config.OpenAiApiKey || '';
-                    var gmElInit = view.querySelector('#txtGeminiApiKey'); if (gmElInit) gmElInit.value = config.GeminiApiKey || '';
-                    view.querySelector('#chkExtendedConsoleOutput').checked = config.ExtendedConsoleOutput || false;
-                    view.querySelector('#chkDryRunMode').checked = config.DryRunMode || false;
-                    if (view.querySelector('#txtSearchTags')) {
-                        view.querySelector('#txtSearchTags').value = '';
-                        view.querySelector('#btnClearSearch').style.display = 'none';
-                    }
-                    ['#chkFilterTag','#chkFilterCollection','#chkFilterSchedule','#chkFilterHomeScreen',
-                     '#chkFilterSrcExternal','#chkFilterSrcMediaInfo','#chkFilterSrcCollection','#chkFilterSrcPlaylist',
-                     '#chkFilterSrcAI','#chkFilterActive','#chkFilterInactive'
-                    ].forEach(id => { var el = view.querySelector(id); if (el) el.checked = false; });
-                    var lbl = view.querySelector('#filterDropdownLabel'); if (lbl) lbl.textContent = 'Filter';
-                    var btn = view.querySelector('#btnFilterDropdown'); if (btn) btn.classList.remove('active');
-
-                    var grouped = groupConfigTags(config.Tags);
-
-                    var keys = Object.keys(grouped);
-                    keys.forEach((k, i) => renderTagGroup(grouped[k], container, false, i));
-
-                    if (keys.length === 0) renderTagGroup({ Tag: '', Urls: [{ url: '', limit: 0 }], Active: true }, container, false, 0);
-
-                    var savedSort = localStorage.getItem('HomeScreenCompanion_SortBy') || 'Manual';
-                    sortRows(container, savedSort);
-                    applyFilters(view);
-                    requestAnimationFrame(function () {
-                        try {
-                            originalConfigState = JSON.stringify(getUiConfig(view, true));
-                        } catch (err) {
-                            originalConfigState = null;
-                        }
-                        checkFormState();
-                        updateDryRunWarning();
-                    });
-                });
+                loadConfig();
             });
         });
 
@@ -4301,6 +4268,57 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             window.removeEventListener('beforeunload', beforeUnloadHandler);
         }, { once: true });
 
+        function loadConfig() {
+            return window.ApiClient.getPluginConfiguration(pluginId).then(config => {
+                lastHscConfig = {
+                    HomeSyncEnabled:       config.HomeSyncEnabled       || false,
+                    HomeSyncLibraryOrder:  config.HomeSyncLibraryOrder  || false,
+                    HomeSyncSourceUserId:  config.HomeSyncSourceUserId  || '',
+                    HomeSyncTargetUserIds: config.HomeSyncTargetUserIds || []
+                };
+                savedFilters = config.SavedFilters || [];
+
+                var container = view.querySelector('#tagListContainer'); container.innerHTML = '';
+                view.querySelector('#txtTraktClientId').value = config.TraktClientId || '';
+                view.querySelector('#txtMdblistApiKey').value = config.MdblistApiKey || '';
+                var oaElInit = view.querySelector('#txtOpenAiApiKey'); if (oaElInit) oaElInit.value = config.OpenAiApiKey || '';
+                var gmElInit = view.querySelector('#txtGeminiApiKey'); if (gmElInit) gmElInit.value = config.GeminiApiKey || '';
+                view.querySelector('#chkExtendedConsoleOutput').checked = config.ExtendedConsoleOutput || false;
+                view.querySelector('#chkDryRunMode').checked = config.DryRunMode || false;
+                view.querySelector('#chkPreserveTagsOnEmptyResult').checked = config.PreserveTagsOnEmptyResult || false;
+                if (view.querySelector('#txtSearchTags')) {
+                    view.querySelector('#txtSearchTags').value = '';
+                    view.querySelector('#btnClearSearch').style.display = 'none';
+                }
+                ['#chkFilterTag','#chkFilterCollection','#chkFilterSchedule','#chkFilterHomeScreen',
+                 '#chkFilterSrcExternal','#chkFilterSrcMediaInfo','#chkFilterSrcCollection','#chkFilterSrcPlaylist',
+                 '#chkFilterSrcAI','#chkFilterActive','#chkFilterInactive'
+                ].forEach(id => { var el = view.querySelector(id); if (el) el.checked = false; });
+                var lbl = view.querySelector('#filterDropdownLabel'); if (lbl) lbl.textContent = 'Filter';
+                var btn = view.querySelector('#btnFilterDropdown'); if (btn) btn.classList.remove('active');
+
+                var grouped = groupConfigTags(config.Tags);
+
+                var keys = Object.keys(grouped);
+                keys.forEach((k, i) => renderTagGroup(grouped[k], container, false, i));
+
+                if (keys.length === 0) renderTagGroup({ Tag: '', Urls: [{ url: '', limit: 0 }], Active: true }, container, false, 0);
+
+                var savedSort = localStorage.getItem('HomeScreenCompanion_SortBy') || 'Manual';
+                sortRows(container, savedSort);
+                applyFilters(view);
+                requestAnimationFrame(function () {
+                    try {
+                        originalConfigState = JSON.stringify(getUiConfig(view, true));
+                    } catch (err) {
+                        originalConfigState = null;
+                    }
+                    checkFormState();
+                    updateDryRunWarning();
+                });
+            });
+        }
+
         function hasDirtyState() {
             var btnSave = view.querySelector('.btn-save');
             if (btnSave && !btnSave.disabled) return true;
@@ -4312,7 +4330,9 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         view.querySelectorAll('.page-tab-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 var target = this.getAttribute('data-page-tab');
-                if (hasDirtyState() && !confirm('You have unsaved changes. Leave this tab and discard changes?')) return;
+                var wasDirty = hasDirtyState();
+                if (wasDirty && !confirm('You have unsaved changes. Leave this tab and discard changes?')) return;
+                if (wasDirty) loadConfig();
                 view.querySelectorAll('.page-tab-btn').forEach(function (b) { b.classList.remove('active'); });
                 this.classList.add('active');
                 view.querySelectorAll('.page-tab-content').forEach(function (c) { c.style.display = 'none'; });

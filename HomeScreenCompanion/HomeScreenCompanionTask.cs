@@ -198,6 +198,7 @@ namespace HomeScreenCompanion
                             .Concat(t.MediaInfoConditions ?? new List<string>()))
                         .Select(c => c.Length > 0 && c[0] == '!' ? c.Substring(1) : c)
                         .Distinct(StringComparer.OrdinalIgnoreCase);
+                    BaseItem[]? allPersonsGlobal = null;
                     foreach (var c in allPersonCriteria)
                     {
                         var p = c.Split(':');
@@ -207,30 +208,45 @@ namespace HomeScreenCompanion
                         {
                             string matchOp = p.Length == 3 ? p[1] : "exact";
                             string personNameRaw = p.Length == 3 ? p[2].Trim() : p[1].Trim();
-                            if (matchOp == "contains") continue;
-                            foreach (var singleName in personNameRaw.Split(',').Select(n => n.Trim()).Where(n => n.Length > 0))
+                            var personTypes = anyEpisodePersonCriteria && p[0] == "Actor"
+                                ? new[] { personTypeEnum, MediaBrowser.Model.Entities.PersonType.GuestStar }
+                                : new[] { personTypeEnum };
+                            foreach (var singleName in personNameRaw.Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).Where(n => n.Length > 0))
                             {
-                                string indivKey = p.Length == 3 ? $"{p[0]}:{p[1]}:{singleName}" : $"{p[0]}:{singleName}";
-                                if (personCache.ContainsKey(indivKey)) continue;
-                                var personItem = _libraryManager.GetItemList(new InternalItemsQuery
+                                if (matchOp == "contains")
                                 {
-                                    IncludeItemTypes = new[] { "Person" },
-                                    Name = singleName
-                                }).FirstOrDefault();
-                                var personTypes = anyEpisodePersonCriteria && p[0] == "Actor"
-                                    ? new[] { personTypeEnum, MediaBrowser.Model.Entities.PersonType.GuestStar }
-                                    : new[] { personTypeEnum };
-                                personCache[indivKey] = personItem == null ? new HashSet<long>() :
-                                    _libraryManager.GetItemList(new InternalItemsQuery
+                                    string containsKey = $"{p[0]}:contains:{singleName}";
+                                    if (personCache.ContainsKey(containsKey)) continue;
+                                    allPersonsGlobal ??= _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { "Person" } }).ToArray();
+                                    var combinedIds = new HashSet<long>();
+                                    foreach (var matchingPerson in allPersonsGlobal.Where(person => person.Name?.IndexOf(singleName, StringComparison.OrdinalIgnoreCase) >= 0))
                                     {
-                                        PersonIds = new[] { personItem.InternalId },
-                                        PersonTypes = personTypes,
-                                        IncludeItemTypes = anyEpisodePersonCriteria
-                                            ? new[] { "Movie", "Series", "Episode" }
-                                            : new[] { "Movie", "Series" },
-                                        Recursive = true,
-                                        IsVirtualItem = false
-                                    }).Select(x => x.InternalId).ToHashSet();
+                                        foreach (var mi in _libraryManager.GetItemList(new InternalItemsQuery
+                                        {
+                                            PersonIds = new[] { matchingPerson.InternalId },
+                                            PersonTypes = personTypes,
+                                            IncludeItemTypes = anyEpisodePersonCriteria ? new[] { "Movie", "Series", "Episode" } : new[] { "Movie", "Series" },
+                                            Recursive = true,
+                                            IsVirtualItem = false
+                                        })) combinedIds.Add(mi.InternalId);
+                                    }
+                                    personCache[containsKey] = combinedIds;
+                                }
+                                else
+                                {
+                                    string indivKey = p.Length == 3 ? $"{p[0]}:{p[1]}:{singleName}" : $"{p[0]}:{singleName}";
+                                    if (personCache.ContainsKey(indivKey)) continue;
+                                    var personItem = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { "Person" }, Name = singleName }).FirstOrDefault();
+                                    personCache[indivKey] = personItem == null ? new HashSet<long>() :
+                                        _libraryManager.GetItemList(new InternalItemsQuery
+                                        {
+                                            PersonIds = new[] { personItem.InternalId },
+                                            PersonTypes = personTypes,
+                                            IncludeItemTypes = anyEpisodePersonCriteria ? new[] { "Movie", "Series", "Episode" } : new[] { "Movie", "Series" },
+                                            Recursive = true,
+                                            IsVirtualItem = false
+                                        }).Select(x => x.InternalId).ToHashSet();
+                                }
                             }
                         }
                     }
@@ -246,33 +262,37 @@ namespace HomeScreenCompanion
                         .Distinct(StringComparer.OrdinalIgnoreCase);
                     foreach (var crit in allCollPlCriteria)
                     {
-                        if (collectionMembershipCache.ContainsKey(crit)) continue;
                         var colonIdx = crit.IndexOf(':');
                         if (colonIdx < 1) continue;
                         var sourceKind = crit.Substring(0, colonIdx);
-                        var sourceName = crit.Substring(colonIdx + 1).Trim();
+                        var sourceNamesRaw = crit.Substring(colonIdx + 1).Trim();
                         string[] folderTypes = sourceKind.Equals("Playlist", StringComparison.OrdinalIgnoreCase)
                             ? new[] { "Playlist" } : new[] { "BoxSet" };
-                        var folder = _libraryManager.GetItemList(new InternalItemsQuery
+                        foreach (var singleName in sourceNamesRaw.Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).Where(n => n.Length > 0))
                         {
-                            IncludeItemTypes = folderTypes,
-                            Recursive = true
-                        }).FirstOrDefault(i => string.Equals(i.Name, sourceName, StringComparison.OrdinalIgnoreCase));
-                        if (folder == null) { collectionMembershipCache[crit] = new HashSet<long>(); continue; }
-                        var members = sourceKind.Equals("Playlist", StringComparison.OrdinalIgnoreCase)
-                            ? _libraryManager.GetItemList(new InternalItemsQuery { ListIds = new[] { folder.InternalId } })
-                            : _libraryManager.GetItemList(new InternalItemsQuery { CollectionIds = new[] { folder.InternalId }, IsVirtualItem = false });
-                        var ids = new HashSet<long>();
-                        foreach (var m in members)
-                        {
-                            ids.Add(m.InternalId);
-                            if (m.GetType().Name.Contains("Series"))
+                            var indivKey = sourceKind + ":" + singleName;
+                            if (collectionMembershipCache.ContainsKey(indivKey)) continue;
+                            var folder = _libraryManager.GetItemList(new InternalItemsQuery
                             {
-                                foreach (var ep in _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { "Episode" }, Parent = m, Recursive = true, IsVirtualItem = false }))
-                                    ids.Add(ep.InternalId);
+                                IncludeItemTypes = folderTypes,
+                                Recursive = true
+                            }).FirstOrDefault(i => string.Equals(i.Name, singleName, StringComparison.OrdinalIgnoreCase));
+                            if (folder == null) { collectionMembershipCache[indivKey] = new HashSet<long>(); continue; }
+                            var members = sourceKind.Equals("Playlist", StringComparison.OrdinalIgnoreCase)
+                                ? _libraryManager.GetItemList(new InternalItemsQuery { ListIds = new[] { folder.InternalId } })
+                                : _libraryManager.GetItemList(new InternalItemsQuery { CollectionIds = new[] { folder.InternalId }, IsVirtualItem = false });
+                            var ids = new HashSet<long>();
+                            foreach (var m in members)
+                            {
+                                ids.Add(m.InternalId);
+                                if (m.GetType().Name.Contains("Series"))
+                                {
+                                    foreach (var ep in _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { "Episode" }, Parent = m, Recursive = true, IsVirtualItem = false }))
+                                        ids.Add(ep.InternalId);
+                                }
                             }
+                            collectionMembershipCache[indivKey] = ids;
                         }
-                        collectionMembershipCache[crit] = ids;
                     }
                 }
 
@@ -1282,6 +1302,7 @@ namespace HomeScreenCompanion
                     .Concat(tagConfig.MediaInfoConditions ?? new List<string>())
                     .Select(c => c.Length > 0 && c[0] == '!' ? c.Substring(1) : c)
                     .Distinct(StringComparer.OrdinalIgnoreCase);
+                BaseItem[]? allPersonsTag = null;
                 foreach (var c in allCriteria)
                 {
                     var p = c.Split(':');
@@ -1291,26 +1312,45 @@ namespace HomeScreenCompanion
                     {
                         string matchOp = p.Length == 3 ? p[1] : "exact";
                         string personNameRaw = p.Length == 3 ? p[2].Trim() : p[1].Trim();
-                        if (matchOp == "contains") continue;
-                        foreach (var singleName in personNameRaw.Split(',').Select(n => n.Trim()).Where(n => n.Length > 0))
+                        var personTypes = singleTagAnyEpisodePersonCriteria && p[0] == "Actor"
+                            ? new[] { personTypeEnum, MediaBrowser.Model.Entities.PersonType.GuestStar }
+                            : new[] { personTypeEnum };
+                        foreach (var singleName in personNameRaw.Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).Where(n => n.Length > 0))
                         {
-                            string indivKey = p.Length == 3 ? $"{p[0]}:{p[1]}:{singleName}" : $"{p[0]}:{singleName}";
-                            if (personCache.ContainsKey(indivKey)) continue;
-                            var personItem = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { "Person" }, Name = singleName }).FirstOrDefault();
-                            var personTypes = singleTagAnyEpisodePersonCriteria && p[0] == "Actor"
-                                ? new[] { personTypeEnum, MediaBrowser.Model.Entities.PersonType.GuestStar }
-                                : new[] { personTypeEnum };
-                            personCache[indivKey] = personItem == null ? new HashSet<long>() :
-                                _libraryManager.GetItemList(new InternalItemsQuery
+                            if (matchOp == "contains")
+                            {
+                                string containsKey = $"{p[0]}:contains:{singleName}";
+                                if (personCache.ContainsKey(containsKey)) continue;
+                                allPersonsTag ??= _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { "Person" } }).ToArray();
+                                var combinedIds = new HashSet<long>();
+                                foreach (var matchingPerson in allPersonsTag.Where(person => person.Name?.IndexOf(singleName, StringComparison.OrdinalIgnoreCase) >= 0))
                                 {
-                                    PersonIds = new[] { personItem.InternalId },
-                                    PersonTypes = personTypes,
-                                    IncludeItemTypes = singleTagAnyEpisodePersonCriteria
-                                        ? new[] { "Movie", "Series", "Episode" }
-                                        : new[] { "Movie", "Series" },
-                                    Recursive = true,
-                                    IsVirtualItem = false
-                                }).Select(x => x.InternalId).ToHashSet();
+                                    foreach (var mi in _libraryManager.GetItemList(new InternalItemsQuery
+                                    {
+                                        PersonIds = new[] { matchingPerson.InternalId },
+                                        PersonTypes = personTypes,
+                                        IncludeItemTypes = singleTagAnyEpisodePersonCriteria ? new[] { "Movie", "Series", "Episode" } : new[] { "Movie", "Series" },
+                                        Recursive = true,
+                                        IsVirtualItem = false
+                                    })) combinedIds.Add(mi.InternalId);
+                                }
+                                personCache[containsKey] = combinedIds;
+                            }
+                            else
+                            {
+                                string indivKey = p.Length == 3 ? $"{p[0]}:{p[1]}:{singleName}" : $"{p[0]}:{singleName}";
+                                if (personCache.ContainsKey(indivKey)) continue;
+                                var personItem = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { "Person" }, Name = singleName }).FirstOrDefault();
+                                personCache[indivKey] = personItem == null ? new HashSet<long>() :
+                                    _libraryManager.GetItemList(new InternalItemsQuery
+                                    {
+                                        PersonIds = new[] { personItem.InternalId },
+                                        PersonTypes = personTypes,
+                                        IncludeItemTypes = singleTagAnyEpisodePersonCriteria ? new[] { "Movie", "Series", "Episode" } : new[] { "Movie", "Series" },
+                                        Recursive = true,
+                                        IsVirtualItem = false
+                                    }).Select(x => x.InternalId).ToHashSet();
+                            }
                         }
                     }
                 }
@@ -1326,33 +1366,37 @@ namespace HomeScreenCompanion
                     .Distinct(StringComparer.OrdinalIgnoreCase);
                 foreach (var crit in singleTagCollPlCriteria)
                 {
-                    if (collectionMembershipCache.ContainsKey(crit)) continue;
                     var colonIdx = crit.IndexOf(':');
                     if (colonIdx < 1) continue;
                     var sourceKind = crit.Substring(0, colonIdx);
-                    var sourceName = crit.Substring(colonIdx + 1).Trim();
+                    var sourceNamesRaw = crit.Substring(colonIdx + 1).Trim();
                     string[] folderTypes = sourceKind.Equals("Playlist", StringComparison.OrdinalIgnoreCase)
                         ? new[] { "Playlist" } : new[] { "BoxSet" };
-                    var folder = _libraryManager.GetItemList(new InternalItemsQuery
+                    foreach (var singleName in sourceNamesRaw.Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Select(n => n.Trim()).Where(n => n.Length > 0))
                     {
-                        IncludeItemTypes = folderTypes,
-                        Recursive = true
-                    }).FirstOrDefault(i => string.Equals(i.Name, sourceName, StringComparison.OrdinalIgnoreCase));
-                    if (folder == null) { collectionMembershipCache[crit] = new HashSet<long>(); continue; }
-                    var members = sourceKind.Equals("Playlist", StringComparison.OrdinalIgnoreCase)
-                        ? _libraryManager.GetItemList(new InternalItemsQuery { ListIds = new[] { folder.InternalId } })
-                        : _libraryManager.GetItemList(new InternalItemsQuery { CollectionIds = new[] { folder.InternalId }, IsVirtualItem = false });
-                    var ids = new HashSet<long>();
-                    foreach (var m in members)
-                    {
-                        ids.Add(m.InternalId);
-                        if (m.GetType().Name.Contains("Series"))
+                        var indivKey = sourceKind + ":" + singleName;
+                        if (collectionMembershipCache.ContainsKey(indivKey)) continue;
+                        var folder = _libraryManager.GetItemList(new InternalItemsQuery
                         {
-                            foreach (var ep in _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { "Episode" }, Parent = m, Recursive = true, IsVirtualItem = false }))
-                                ids.Add(ep.InternalId);
+                            IncludeItemTypes = folderTypes,
+                            Recursive = true
+                        }).FirstOrDefault(i => string.Equals(i.Name, singleName, StringComparison.OrdinalIgnoreCase));
+                        if (folder == null) { collectionMembershipCache[indivKey] = new HashSet<long>(); continue; }
+                        var members = sourceKind.Equals("Playlist", StringComparison.OrdinalIgnoreCase)
+                            ? _libraryManager.GetItemList(new InternalItemsQuery { ListIds = new[] { folder.InternalId } })
+                            : _libraryManager.GetItemList(new InternalItemsQuery { CollectionIds = new[] { folder.InternalId }, IsVirtualItem = false });
+                        var ids = new HashSet<long>();
+                        foreach (var m in members)
+                        {
+                            ids.Add(m.InternalId);
+                            if (m.GetType().Name.Contains("Series"))
+                            {
+                                foreach (var ep in _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { "Episode" }, Parent = m, Recursive = true, IsVirtualItem = false }))
+                                    ids.Add(ep.InternalId);
+                            }
                         }
+                        collectionMembershipCache[indivKey] = ids;
                     }
-                    collectionMembershipCache[crit] = ids;
                 }
 
                 // Pre-populate userDataCache for all top-level items when IsPlayed/PlayCount/WatchedByCount/LastPlayed criteria exist
@@ -2754,12 +2798,15 @@ namespace HomeScreenCompanion
                                              : SplitCommaValues(tVal).Any(v => item.OfficialRating?.IndexOf(v, StringComparison.OrdinalIgnoreCase) >= 0),
                     "AudioLanguage" => exact ? audioLanguages != null && SplitCommaValues(tVal).Any(v => audioLanguages.Contains(v))
                                              : audioLanguages != null && SplitCommaValues(tVal).Any(v => audioLanguages.Any(l => l.IndexOf(v, StringComparison.OrdinalIgnoreCase) >= 0)),
-                    "Actor"         => exact ? personCache != null && SplitCommaValues(tVal).Any(n => personCache.TryGetValue("Actor:exact:" + n, out var aIds3) && aIds3.Contains(item.InternalId))
-                                             : SplitCommaValues(tVal).Any(n => MatchesPerson(item, n, "Actor")),
-                    "Director"      => exact ? personCache != null && SplitCommaValues(tVal).Any(n => personCache.TryGetValue("Director:exact:" + n, out var dIds3) && dIds3.Contains(item.InternalId))
-                                             : SplitCommaValues(tVal).Any(n => MatchesPerson(item, n, "Director")),
-                    "Writer"        => exact ? personCache != null && SplitCommaValues(tVal).Any(n => personCache.TryGetValue("Writer:exact:" + n, out var wIds3) && wIds3.Contains(item.InternalId))
-                                             : SplitCommaValues(tVal).Any(n => MatchesPerson(item, n, "Writer")),
+                    "Actor"         => personCache != null && (exact
+                                        ? SplitCommaValues(tVal).Any(n => personCache.TryGetValue("Actor:exact:" + n, out var aIds3) && aIds3.Contains(item.InternalId))
+                                        : SplitCommaValues(tVal).Any(n => personCache.TryGetValue("Actor:contains:" + n, out var aIdsC) && aIdsC.Contains(item.InternalId))),
+                    "Director"      => personCache != null && (exact
+                                        ? SplitCommaValues(tVal).Any(n => personCache.TryGetValue("Director:exact:" + n, out var dIds3) && dIds3.Contains(item.InternalId))
+                                        : SplitCommaValues(tVal).Any(n => personCache.TryGetValue("Director:contains:" + n, out var dIdsC) && dIdsC.Contains(item.InternalId))),
+                    "Writer"        => personCache != null && (exact
+                                        ? SplitCommaValues(tVal).Any(n => personCache.TryGetValue("Writer:exact:" + n, out var wIds3) && wIds3.Contains(item.InternalId))
+                                        : SplitCommaValues(tVal).Any(n => personCache.TryGetValue("Writer:contains:" + n, out var wIdsC) && wIdsC.Contains(item.InternalId))),
                     "Artist"        => SplitCommaValues(tVal).Any(v => MatchesArtistOrAlbumArtist(item, v, exact)),
                     "Album"         => SplitCommaValues(tVal).Any(v => MatchesAlbumTitle(item, v, exact)),
                     _ => false
