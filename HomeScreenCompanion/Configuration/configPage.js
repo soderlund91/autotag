@@ -765,6 +765,12 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         if (!crit) return { prop: 'Resolution', op: '', val: '', userId: '', not: false };
         var not = crit.charAt(0) === '!';
         if (not) crit = crit.slice(1);
+        // Handle Collection/Playlist before split(':') — names may contain colons
+        var lcrit = crit.toLowerCase();
+        if (lcrit.startsWith('collection:') || lcrit.startsWith('playlist:')) {
+            var ci = crit.indexOf(':');
+            return { prop: crit.substring(0, ci), op: '', val: crit.substring(ci + 1), userId: '', not: not };
+        }
         var parts = crit.split(':');
         if (parts.length === 1) {
             var mapped = MI_CRITERION_MAP[crit];
@@ -975,7 +981,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
 
     function getMiHintHtml(prop) {
         if (MI_TEXT_MATCH_PROPS.indexOf(prop) < 0 && prop !== 'ImdbId') return '<div class="mi-rule-hint"></div>';
-        return '<div class="mi-rule-hint" style="font-size:0.75em; opacity:0.5; margin-top:2px; padding-right:32px; text-align:right;">One value per line</div>';
+        return '<div class="mi-rule-hint" style="font-size:0.75em; opacity:0.5; margin-top:2px; padding-right:32px; text-align:right;">One value per line &mdash; matches if <em>any</em> line matches (OR)</div>';
     }
 
     function getMediaInfoRuleHtml(criterion) {

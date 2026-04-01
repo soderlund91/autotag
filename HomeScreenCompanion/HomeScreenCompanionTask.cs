@@ -2654,6 +2654,17 @@ namespace HomeScreenCompanion
 
             bool EvaluateCriterionCore(string c)
             {
+            // Handle Collection/Playlist before Split(':') — names may contain colons
+            if (c.StartsWith("Collection:", StringComparison.OrdinalIgnoreCase) ||
+                c.StartsWith("Playlist:", StringComparison.OrdinalIgnoreCase))
+            {
+                var ci = c.IndexOf(':');
+                var cpProp = c.Substring(0, ci);
+                var cpVal  = c.Substring(ci + 1).Trim();
+                return cpProp.Equals("Collection", StringComparison.OrdinalIgnoreCase)
+                    ? collectionMembershipCache != null && SplitCommaValues(cpVal).Any(n => collectionMembershipCache.TryGetValue("Collection:" + n, out var cIds) && cIds.Contains(item.InternalId))
+                    : collectionMembershipCache != null && SplitCommaValues(cpVal).Any(n => collectionMembershipCache.TryGetValue("Playlist:" + n, out var pIds)  && pIds.Contains(item.InternalId));
+            }
             var parts = c.Split(':');
             if (parts.Length == 2)
             {
@@ -2677,8 +2688,6 @@ namespace HomeScreenCompanion
                     "ImdbId"        => MatchesImdbId(item.GetProviderId("Imdb"), val),
                     "Artist"        => SplitCommaValues(val).Any(v => MatchesArtistOrAlbumArtist(item, v, false)),
                     "Album"         => SplitCommaValues(val).Any(v => MatchesAlbumTitle(item, v, false)),
-                    "Collection"    => collectionMembershipCache != null && SplitCommaValues(val).Any(n => collectionMembershipCache.TryGetValue("Collection:" + n, out var cIds) && cIds.Contains(item.InternalId)),
-                    "Playlist"      => collectionMembershipCache != null && SplitCommaValues(val).Any(n => collectionMembershipCache.TryGetValue("Playlist:" + n, out var pIds) && pIds.Contains(item.InternalId)),
                     _ => false
                 };
             }
