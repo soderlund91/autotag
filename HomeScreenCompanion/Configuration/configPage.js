@@ -3227,7 +3227,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 var rows = items.length === 0
                     ? '<div style="color:var(--theme-text-secondary);padding:8px 0;">No items found.</div>'
                     : items.map(function (item) {
-                        var id = isTagSection ? (item.Name || '') : (item.Id || '');
+                        var id = item.Id || '';
                         var name = item.Name || '';
                         var count = item.ItemCount != null ? item.ItemCount : 0;
                         var managed = isTagSection ? managedTagMap[name.toLowerCase()] : managedCollMap[name.toLowerCase()];
@@ -3236,7 +3236,9 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                             : '';
                         return '<tr class="tc-manage-row" data-rowname="' + escAttr(name.toLowerCase()) + '" data-managed="' + (managed && managed.length > 0 ? '1' : '0') + '" data-count="' + count + '">' +
                             '<td style="padding:9px 4px;border-bottom:1px solid var(--line-color);width:100%;max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
-                            '<span class="tc-item-name">' + escHtml(name) + '</span>' +
+                            (id
+                                ? '<a class="tc-item-name tc-nav-link" href="javascript:void(0)" data-navid="' + escAttr(id) + '" style="color:inherit;text-decoration:none;cursor:pointer;" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">' + escHtml(name) + '</a>'
+                                : '<span class="tc-item-name">' + escHtml(name) + '</span>') +
                             badge +
                             '</td>' +
                             '<td style="padding:9px 4px 9px 16px;border-bottom:1px solid var(--line-color);white-space:nowrap;color:var(--theme-text-secondary);font-size:0.88em;">' + count + ' items</td>' +
@@ -3322,6 +3324,17 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
 
             if (container._tcClickHandler) container.removeEventListener('click', container._tcClickHandler);
             container._tcClickHandler = function (e) {
+                var navLink = e.target.closest('.tc-nav-link');
+                if (navLink) {
+                    var navId = navLink.dataset.navid;
+                    var baseUrl = window.location.href.split('#')[0];
+                    var serverId = (window.ApiClient && window.ApiClient.serverId) ? window.ApiClient.serverId() : '';
+                    var url = baseUrl + '#!/item?id=' + encodeURIComponent(navId) +
+                              (serverId ? '&serverId=' + encodeURIComponent(serverId) : '');
+                    window.open(url, '_blank');
+                    return;
+                }
+
                 var btn = e.target.closest('button');
                 if (!btn) return;
 

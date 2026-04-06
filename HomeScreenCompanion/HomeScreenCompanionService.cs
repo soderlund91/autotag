@@ -93,7 +93,7 @@ namespace HomeScreenCompanion
 
     [Route("/HomeScreenCompanion/Manage/Tags", "GET")]
     public class GetManagedTagsRequest : IReturn<GetManagedTagsResponse> { }
-    public class ManagedTagInfo { public string Name { get; set; } = ""; public int ItemCount { get; set; } }
+    public class ManagedTagInfo { public string Id { get; set; } = ""; public string Name { get; set; } = ""; public int ItemCount { get; set; } }
     public class GetManagedTagsResponse { public List<ManagedTagInfo> Tags { get; set; } = new List<ManagedTagInfo>(); }
 
     [Route("/HomeScreenCompanion/Manage/Collections", "GET")]
@@ -651,7 +651,6 @@ public class HomeScreenCompanionService : IService
         {
             var allItems = _libraryManager.GetItemList(new InternalItemsQuery
             {
-                IncludeItemTypes = new[] { "Movie", "Series", "Season", "Episode" },
                 Recursive = true,
                 IsVirtualItem = false
             });
@@ -666,8 +665,23 @@ public class HomeScreenCompanionService : IService
                     tagCount[tag] = c + 1;
                 }
             }
+            var tagItems = _libraryManager.GetItemList(new InternalItemsQuery
+            {
+                IncludeItemTypes = new[] { "Tag" },
+                Recursive = true
+            });
+            var tagIdMap = tagItems.ToDictionary(
+                t => t.Name ?? "",
+                t => t.Id.ToString("N"),
+                StringComparer.OrdinalIgnoreCase);
+
             var tags = tagCount
-                .Select(kv => new ManagedTagInfo { Name = kv.Key, ItemCount = kv.Value })
+                .Select(kv => new ManagedTagInfo
+                {
+                    Name = kv.Key,
+                    ItemCount = kv.Value,
+                    Id = tagIdMap.TryGetValue(kv.Key, out var tid) ? tid : ""
+                })
                 .OrderBy(t => t.Name)
                 .ToList();
             return new GetManagedTagsResponse { Tags = tags };

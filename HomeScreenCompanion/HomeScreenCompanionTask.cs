@@ -1508,6 +1508,10 @@ namespace HomeScreenCompanion
             string cName = string.IsNullOrWhiteSpace(tagConfig.CollectionName) ? tagName : tagConfig.CollectionName.Trim();
             int effectiveLimit = tagConfig.Limit <= 0 ? 10000 : tagConfig.Limit;
             var blacklist = new HashSet<string>(tagConfig.Blacklist ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
+            // Remove this tag from the cache before repopulating so blacklisted items don't get
+            // immediately re-tagged by the real-time event handler when UpdateItem is called.
+            // (Full run clears the entire cache first; single run must do a targeted removal.)
+            TagCacheManager.Instance.RemoveTagFromAllEntries(tagName);
             var matchedLocalItems = new List<BaseItem>();
             List<BaseItem> tagOutputItems = matchedLocalItems;
             List<BaseItem> collectionOutputItems = matchedLocalItems;
@@ -1909,6 +1913,9 @@ namespace HomeScreenCompanion
                     return (true, $"{matchedLocalItems.Count} matched, {tagsAdded}↑ {tagsRemoved}↓ tags — collection error: {ex.Message}");
                 }
             }
+
+            if (!dryRun)
+                TagCacheManager.Instance.Save();
 
             // Manage home sections for this entry
             var _singleGs = new GroupRunStats
