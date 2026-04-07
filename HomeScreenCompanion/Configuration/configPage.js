@@ -3299,7 +3299,13 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 { label: 'Games',        types: ['game'] },
                 { label: 'Trailers',     types: ['trailer'] },
                 { label: 'Theme songs',  types: ['themesong'] },
-                { label: 'Theme videos', types: ['themevideo', 'video'] }
+                { label: 'Theme videos', types: ['themevideo', 'video'] },
+                { label: 'People',       types: ['person'] },
+                { label: 'Collections',  types: ['boxset'] },
+                { label: 'Photos',       types: ['photo', 'photoalbum'] },
+                { label: 'Playlists',    types: ['playlist'] },
+                { label: 'Recordings',   types: ['recording'] },
+                { label: 'Studios',      types: ['studio'] }
             ];
 
             var presentGroups = tcTypeGroups.filter(function (g) {

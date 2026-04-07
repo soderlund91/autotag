@@ -670,7 +670,7 @@ public class HomeScreenCompanionService : IService
             {
                 Recursive = true,
                 IsVirtualItem = false,
-                IncludeItemTypes = new[] { "Movie", "Series", "Episode", "Season", "Audio", "MusicVideo", "MusicAlbum", "MusicArtist", "Book", "Game", "Trailer", "Video" }
+                IncludeItemTypes = new[] { "Movie", "Series", "Episode", "Season", "Audio", "MusicVideo", "MusicAlbum", "MusicArtist", "Book", "Game", "Trailer", "Video", "Person", "BoxSet", "Photo", "PhotoAlbum", "Playlist", "Recording", "Studio" }
             });
             var tagCount = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var tagTypes = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
