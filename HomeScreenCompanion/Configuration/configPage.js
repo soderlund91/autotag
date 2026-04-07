@@ -29,6 +29,8 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             root.style.setProperty('--plugin-popup-border', 'rgba(255,255,255,0.12)');
             root.style.setProperty('--plugin-popup-hover',  'rgba(255,255,255,0.08)');
             root.style.setProperty('--plugin-popup-badge',  'rgba(255,255,255,0.1)');
+            root.style.setProperty('--plugin-input-border', 'rgba(255,255,255,0.2)');
+            root.style.setProperty('--plugin-input-bg',     'rgba(255,255,255,0.08)');
         } else {
             root.style.setProperty('--plugin-popup-bg',     '#f2f2f2');
             root.style.setProperty('--plugin-popup-bg2',    '#e0e0e0');
@@ -37,6 +39,8 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             root.style.setProperty('--plugin-popup-border', 'rgba(0,0,0,0.15)');
             root.style.setProperty('--plugin-popup-hover',  'rgba(0,0,0,0.08)');
             root.style.setProperty('--plugin-popup-badge',  'rgba(0,0,0,0.1)');
+            root.style.setProperty('--plugin-input-border', 'rgba(0,0,0,0.28)');
+            root.style.setProperty('--plugin-input-bg',     'rgba(0,0,0,0.04)');
         }
     }
 
@@ -919,7 +923,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 return tagTextOpHtml + '<select class="selMiValue" is="emby-select" style="flex:1;"><option value="">-- Select tag --</option>' + tagOpts + '</select>';
             }
             var migratedTagVal = migrateCommaSeparated(savedVal || '');
-            return tagTextOpHtml + '<textarea class="txtMiValue" placeholder="e.g. 4K" rows="1" style="flex:1;resize:none;overflow:hidden;padding:6px 8px;font-size:inherit;font-family:inherit;background:var(--input-background,rgba(255,255,255,0.08));border:1px solid var(--input-border,rgba(255,255,255,0.2));border-radius:3px;color:inherit;line-height:1.4;min-height:32px;max-height:120px;overflow-y:auto;">' + migratedTagVal.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</textarea>';
+            return tagTextOpHtml + '<textarea class="txtMiValue" placeholder="e.g. 4K" rows="1" style="flex:1;resize:none;overflow:hidden;padding:6px 8px;font-size:inherit;font-family:inherit;background:var(--plugin-input-bg,rgba(255,255,255,0.08));border:1px solid var(--plugin-input-border,rgba(255,255,255,0.2));border-radius:3px;color:inherit;line-height:1.4;min-height:32px;max-height:120px;overflow-y:auto;">' + migratedTagVal.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</textarea>';
         }
         if (MI_DROPDOWN_OPTIONS[prop]) {
             if (prop === 'MediaType') {
@@ -972,11 +976,11 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             var ph = MI_TEXT_PLACEHOLDERS[prop] || '';
             var ph = MI_TEXT_PLACEHOLDERS[prop] || '';
             var migratedVal = migrateCommaSeparated(savedVal || '');
-            return textOpHtml + '<textarea class="txtMiValue" placeholder="' + ph + '" rows="1" style="flex:1;resize:none;overflow:hidden;padding:6px 8px;font-size:inherit;font-family:inherit;background:var(--input-background,rgba(255,255,255,0.08));border:1px solid var(--input-border,rgba(255,255,255,0.2));border-radius:3px;color:inherit;line-height:1.4;min-height:32px;max-height:120px;overflow-y:auto;">' + migratedVal.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</textarea>';
+            return textOpHtml + '<textarea class="txtMiValue" placeholder="' + ph + '" rows="1" style="flex:1;resize:none;overflow:hidden;padding:6px 8px;font-size:inherit;font-family:inherit;background:var(--plugin-input-bg,rgba(255,255,255,0.08));border:1px solid var(--plugin-input-border,rgba(255,255,255,0.2));border-radius:3px;color:inherit;line-height:1.4;min-height:32px;max-height:120px;overflow-y:auto;">' + migratedVal.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</textarea>';
         }
         var ph = MI_TEXT_PLACEHOLDERS[prop] || '';
         var migratedVal = migrateCommaSeparated(savedVal || '');
-        return '<textarea class="txtMiValue" placeholder="' + ph + '" rows="1" style="flex:1;resize:none;overflow:hidden;padding:6px 8px;font-size:inherit;font-family:inherit;background:var(--input-background,rgba(255,255,255,0.08));border:1px solid var(--input-border,rgba(255,255,255,0.2));border-radius:3px;color:inherit;line-height:1.4;min-height:32px;max-height:120px;overflow-y:auto;">' + migratedVal.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</textarea>';
+        return '<textarea class="txtMiValue" placeholder="' + ph + '" rows="1" style="flex:1;resize:none;overflow:hidden;padding:6px 8px;font-size:inherit;font-family:inherit;background:var(--plugin-input-bg,rgba(255,255,255,0.08));border:1px solid var(--plugin-input-border,rgba(255,255,255,0.2));border-radius:3px;color:inherit;line-height:1.4;min-height:32px;max-height:120px;overflow-y:auto;">' + migratedVal.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</textarea>';
     }
 
     function getMiHintHtml(prop) {
@@ -1594,7 +1598,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 <div class="tab-content advanced-tab" style="display:none;">
                     <div class="inputContainer">
                         <p style="margin:0 0 5px 0; font-size:0.9em; font-weight:bold; opacity:0.7;">Blacklist / Ignore (IMDB IDs)</p>
-                        <textarea class="txtTagBlacklist" rows="2" placeholder="tt1234567&#10;tt9876543" style="width:100%;resize:none;overflow:hidden;padding:6px 8px;font-size:inherit;font-family:inherit;background:var(--input-background,rgba(255,255,255,0.08));border:1px solid var(--input-border,rgba(255,255,255,0.2));border-radius:3px;color:inherit;line-height:1.4;min-height:44px;max-height:120px;overflow-y:auto;">${blacklist}</textarea>
+                        <textarea class="txtTagBlacklist" rows="2" placeholder="tt1234567&#10;tt9876543" style="width:100%;resize:none;overflow:hidden;padding:6px 8px;font-size:inherit;font-family:inherit;background:var(--plugin-input-bg,rgba(255,255,255,0.08));border:1px solid var(--plugin-input-border,rgba(255,255,255,0.2));border-radius:3px;color:inherit;line-height:1.4;min-height:44px;max-height:120px;overflow-y:auto;">${blacklist}</textarea>
                         <div class="fieldDescription">Items with these IDs will never be tagged or added to collection.</div>
                     </div>
                 </div>
@@ -3440,6 +3444,70 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             }
 
             applySearchSort();
+
+            // ── Hover tooltip: visar vilka objekttyper en tagg finns på ──
+            var tcTooltip = document.createElement('div');
+            tcTooltip.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;display:none;' +
+                'background:var(--plugin-popup-bg,#2a2a2a);color:var(--plugin-popup-color,#eee);' +
+                'border:1px solid var(--plugin-popup-border,#444);border-radius:6px;' +
+                'padding:8px 12px;font-size:0.82em;line-height:1.6;max-width:210px;' +
+                'box-shadow:0 4px 14px rgba(0,0,0,0.4);';
+            document.body.appendChild(tcTooltip);
+
+            // Ta bort tooltip när containern lämnar DOM
+            var tcTooltipObserver = new MutationObserver(function () {
+                if (!container.isConnected) { tcTooltip.remove(); tcTooltipObserver.disconnect(); }
+            });
+            if (container.parentNode) tcTooltipObserver.observe(container.parentNode, { childList: true });
+
+            function getTypeLabels(typesStr) {
+                var rawTypes = (typesStr || '').split(',').filter(Boolean);
+                if (!rawTypes.length) return null;
+                var seen = {};
+                var labels = [];
+                tcTypeGroups.forEach(function (g) {
+                    if (!seen[g.label] && rawTypes.some(function (t) { return g.types.indexOf(t) !== -1; })) {
+                        seen[g.label] = true;
+                        labels.push(g.label);
+                    }
+                });
+                return labels.length ? labels : null;
+            }
+
+            var tcTagSection = container.querySelector('#tcTagSection');
+            if (tcTagSection) {
+                tcTagSection.addEventListener('mouseover', function (e) {
+                    var nameEl = e.target.closest('.tc-item-name');
+                    if (!nameEl) { tcTooltip.style.display = 'none'; return; }
+                    var row = nameEl.closest('.tc-manage-row');
+                    if (!row) return;
+                    var labels = getTypeLabels(row.dataset.types);
+                    if (!labels) { tcTooltip.style.display = 'none'; return; }
+                    tcTooltip.innerHTML =
+                        '<div style="font-weight:600;opacity:0.55;font-size:0.85em;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:5px;">Found in</div>' +
+                        labels.map(function (l) {
+                            return '<div style="display:flex;align-items:center;gap:6px;">' +
+                                '<i class="md-icon" style="font-size:0.95em;opacity:0.7;">label</i>' +
+                                escHtml(l) + '</div>';
+                        }).join('');
+                    tcTooltip.style.display = 'block';
+                });
+                tcTagSection.addEventListener('mousemove', function (e) {
+                    var nameEl = e.target.closest('.tc-item-name');
+                    if (!nameEl) { tcTooltip.style.display = 'none'; return; }
+                    tcTooltip.style.left = (e.clientX + 16) + 'px';
+                    tcTooltip.style.top = (e.clientY + 12) + 'px';
+                    var rect = tcTooltip.getBoundingClientRect();
+                    if (rect.right > window.innerWidth - 8) tcTooltip.style.left = (e.clientX - rect.width - 16) + 'px';
+                    if (rect.bottom > window.innerHeight - 8) tcTooltip.style.top = (e.clientY - rect.height - 12) + 'px';
+                });
+                tcTagSection.addEventListener('mouseout', function (e) {
+                    var nameEl = e.target.closest('.tc-item-name');
+                    if (!nameEl) return;
+                    if (e.relatedTarget && nameEl.contains(e.relatedTarget)) return;
+                    tcTooltip.style.display = 'none';
+                });
+            }
 
             function updateSaveButton() {
                 var hasPending = Object.keys(pendingTagDeletes).length > 0 || Object.keys(pendingCollDeletes).length > 0;
