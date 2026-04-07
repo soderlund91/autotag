@@ -78,6 +78,9 @@ namespace HomeScreenCompanion
             public bool HomeSectionSynced;
             public int HomeSectionUserCount;
             public bool HomeSectionRemoved;
+            public bool BoxSetHse;   // tag applied to BoxSet only, not to items
+            public bool BoxSetFound; // the target BoxSet was found in the library
+            public int BoxSetTaggedCount; // how many BoxSets were successfully tagged (for merged log display)
             public string? TagName;
             public string? CollectionName;
             public int GroupIndex;
@@ -437,6 +440,7 @@ namespace HomeScreenCompanion
                         EnableTag = tagConfig.EnableTag && !tagConfig.OnlyCollection,
                         EnableCollection = tagConfig.EnableCollection,
                         EnableHomeSection = tagConfig.EnableHomeSection,
+                        BoxSetHse = IsBoxSetHomeSectionEntry(tagConfig),
                         TagName = tagName,
                         GroupIndex = activeGroupIdx,
                         GroupTotal = activeGroupTotal
@@ -797,7 +801,6 @@ namespace HomeScreenCompanion
 
                             if (debug) LogDebug($"  AI returned {gs.ListCount} items  ·  {matchedLocalItems.Count} matched in library");
                         }
-
                         // For non-MediaInfo sources, apply output level selection (expand down from Series/Movie)
                         if (tagConfig.SourceType != "MediaInfo")
                         {
@@ -847,7 +850,7 @@ namespace HomeScreenCompanion
                             continue;
                         }
 
-                        if (tagConfig.EnableTag && !tagConfig.OnlyCollection)
+                        if (tagConfig.EnableTag && !tagConfig.OnlyCollection && !IsBoxSetHomeSectionEntry(tagConfig))
                         {
                             foreach (var localItem in tagOutputItems)
                             {
@@ -868,6 +871,9 @@ namespace HomeScreenCompanion
                             foreach (var localItem in collectionOutputItems)
                                 desiredCollectionsMap[cName].Add(localItem.InternalId);
                         }
+
+                        gs.BoxSetFound = ApplyTagToSourceBoxSet(tagConfig, tagName, dryRun, cancellationToken);
+                        gs.BoxSetTaggedCount = gs.BoxSetFound ? 1 : 0;
                     }
                     catch (Exception ex)
                     {
@@ -1152,6 +1158,7 @@ namespace HomeScreenCompanion
                 }
                 if (!dryRun) SaveFileHistory("homescreencompanion_collections.txt", activeCollections.ToList());
 
+                tagsRemoved += CleanupBoxSetTags(config, dryRun, cancellationToken);
                 if (!dryRun) ManageHomeSections(config, cancellationToken, debug, statsList);
 
                 progress.Report(100);
@@ -1162,9 +1169,64 @@ namespace HomeScreenCompanion
                 string finalStatus = dryRun ? "Dry Run" : "Success";
                 LastRunStatus = $"{finalStatus} ({DateTime.Now:HH:mm})";
 
+                // Merge BoxSet HSE entries with the same DisplayName + TagName into one display block
+                var displayStatsList = new List<GroupRunStats>();
+                var boxSetMergeMap = new Dictionary<string, GroupRunStats>(StringComparer.OrdinalIgnoreCase);
+                foreach (var gs in statsList)
+                {
+                    if (gs.BoxSetHse)
+                    {
+                        var key = $"{gs.DisplayName}\x00{gs.TagName}";
+                        if (boxSetMergeMap.TryGetValue(key, out var existing))
+                        {
+                            existing.BoxSetTaggedCount += gs.BoxSetTaggedCount;
+                            if (gs.HomeSectionSynced)
+                            {
+                                existing.HomeSectionSynced = true;
+                                existing.HomeSectionUserCount = Math.Max(existing.HomeSectionUserCount, gs.HomeSectionUserCount);
+                            }
+                            if (gs.HomeSectionRemoved) existing.HomeSectionRemoved = true;
+                        }
+                        else
+                        {
+                            var merged = new GroupRunStats
+                            {
+                                DisplayName      = gs.DisplayName,
+                                SourceType       = gs.SourceType,
+                                Skipped          = gs.Skipped,
+                                SkipReason       = gs.SkipReason,
+                                ErrorMessage     = gs.ErrorMessage,
+                                EnableTag        = gs.EnableTag,
+                                EnableCollection = gs.EnableCollection,
+                                EnableHomeSection = gs.EnableHomeSection,
+                                HomeSectionSynced = gs.HomeSectionSynced,
+                                HomeSectionUserCount = gs.HomeSectionUserCount,
+                                HomeSectionRemoved = gs.HomeSectionRemoved,
+                                BoxSetHse        = true,
+                                BoxSetFound      = gs.BoxSetFound,
+                                BoxSetTaggedCount = gs.BoxSetTaggedCount,
+                                TagName          = gs.TagName,
+                                CollectionName   = gs.CollectionName,
+                            };
+                            boxSetMergeMap[key] = merged;
+                            displayStatsList.Add(merged);
+                        }
+                    }
+                    else
+                    {
+                        displayStatsList.Add(gs);
+                    }
+                }
+                int displayTotal = displayStatsList.Count;
+                for (int i = 0; i < displayStatsList.Count; i++)
+                {
+                    displayStatsList[i].GroupIndex = i + 1;
+                    displayStatsList[i].GroupTotal = displayTotal;
+                }
+
                 // Emit per-group blocks
                 LogSummary("");
-                foreach (var gs in statsList)
+                foreach (var gs in displayStatsList)
                 {
                     LogSummary($"[{gs.GroupIndex}/{gs.GroupTotal}] {gs.DisplayName}  ({gs.SourceType})");
                     if (gs.Skipped)
@@ -1179,12 +1241,14 @@ namespace HomeScreenCompanion
                     {
                         if (gs.SourceType == "MediaInfo")
                             LogSummary($"  Scanned: {gs.ListCount} items · {gs.MatchCount} matched");
+                        else if (gs.BoxSetHse)
+                            LogSummary($"  Collections tagged: {gs.BoxSetTaggedCount}");
                         else if (gs.SourceType == "LocalCollection" || gs.SourceType == "LocalPlaylist")
                             LogSummary($"  Source: {gs.ListCount} items · {gs.MatchCount} matched");
                         else
                             LogSummary($"  List: {gs.ListCount} objects · {gs.MatchCount} matched in library");
 
-                        if (gs.EnableTag)
+                        if (!gs.BoxSetHse && gs.EnableTag)
                             LogSummary($"  Tag: +{gs.TagsAdded} added, -{gs.TagsRemoved} removed");
                         if (gs.EnableCollection)
                             LogSummary(gs.CollectionCreated
@@ -1198,16 +1262,32 @@ namespace HomeScreenCompanion
                     LogSummary("");
                 }
 
+                // Log cleanup of tags from deleted/disabled groups (tags that had removals but
+                // no matching entry in displayStatsList to attribute them to).
+                var displayedTagNames = new HashSet<string>(
+                    displayStatsList.Where(g => g.TagName != null).Select(g => g.TagName!),
+                    StringComparer.OrdinalIgnoreCase);
+                foreach (var kvp in tagRemovedByTag.Where(kvp => kvp.Value > 0 && !displayedTagNames.Contains(kvp.Key)))
+                {
+                    LogSummary($"[Cleanup] Removed tag '{kvp.Key}' from {kvp.Value} item(s)  (group deleted or disabled)");
+                    LogSummary("");
+                }
+
                 // Final summary
                 int totalCollCreated = statsList.Count(g => g.CollectionCreated);
                 int totalCollUpdated = statsList.Count(g => !g.CollectionCreated && !g.Skipped && g.EnableCollection && (g.CollectionItemsAdded > 0 || g.CollectionItemsRemoved > 0));
                 int totalHsSynced = statsList.Count(g => g.HomeSectionSynced);
                 int totalHsRemoved = statsList.Count(g => g.HomeSectionRemoved);
 
+                int totalBoxSetsTagged = displayStatsList
+                    .Where(g => g.BoxSetHse && !g.Skipped && g.ErrorMessage == null)
+                    .Sum(g => g.BoxSetTaggedCount);
+                int summaryTagsAdded = tagsAdded + totalBoxSetsTagged;
+
                 LogSummary("══════════════════════════════════════════════════");
                 LogSummary("Summary");
-                if (tagsAdded > 0 || tagsRemoved > 0)
-                    LogSummary($"  Tags:          +{tagsAdded} added,  -{tagsRemoved} removed");
+                if (summaryTagsAdded > 0 || tagsRemoved > 0)
+                    LogSummary($"  Tags:          +{summaryTagsAdded} added,  -{tagsRemoved} removed");
                 LogSummary($"  Collections:   {totalCollCreated} created,   {totalCollUpdated} updated,   {collDeleted} removed");
                 LogSummary($"  Home sections: {totalHsSynced} synced,    {totalHsRemoved} removed");
                 LogSummary($"  Done in {elapsedStr}  ·  {finalStatus}");
@@ -1715,11 +1795,12 @@ namespace HomeScreenCompanion
             var _dbgTagAdded = debug ? new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase) : null;
             var _dbgTagRemoved = debug ? new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase) : null;
             var matchedIds = new HashSet<Guid>(tagOutputItems.Select(i => i.Id));
+            var _isBoxSetHse = IsBoxSetHomeSectionEntry(tagConfig); // computed once, not per-item
             int updateCount = 0;
             foreach (var item in allItems)
             {
                 var existingTags = new HashSet<string>(item.Tags, StringComparer.OrdinalIgnoreCase);
-                bool shouldHave = tagConfig.EnableTag && !tagConfig.OnlyCollection && matchedIds.Contains(item.Id);
+                bool shouldHave = tagConfig.EnableTag && !tagConfig.OnlyCollection && !_isBoxSetHse && matchedIds.Contains(item.Id);
                 bool hasTag = existingTags.Contains(tagName);
                 if (shouldHave == hasTag) continue;
                 if (debug)
@@ -1743,7 +1824,7 @@ namespace HomeScreenCompanion
             // Episode cleanup: remove stale tags from episodes; also tag matching episodes when episode-level targeting is active
             {
                 var (tEpClean, _, _) = EffectiveTagTargets(tagConfig);
-                bool targetsEpisodes = tagConfig.EnableTag && !tagConfig.OnlyCollection && tEpClean &&
+                bool targetsEpisodes = tagConfig.EnableTag && !tagConfig.OnlyCollection && !_isBoxSetHse && tEpClean &&
                     (tagConfig.SourceType != "MediaInfo" || TagConfigTargetsEpisodes(tagConfig));
                 var matchedEpisodeIds = new HashSet<Guid>();
                 var allEpisodeItemsMap = new Dictionary<Guid, BaseItem>();
@@ -1799,7 +1880,7 @@ namespace HomeScreenCompanion
             // Season cleanup: remove stale tags from seasons; also tag matching seasons when season-level targeting is active
             {
                 var (_, tSeaClean, _) = EffectiveTagTargets(tagConfig);
-                bool targetsSeason = tagConfig.EnableTag && !tagConfig.OnlyCollection &&
+                bool targetsSeason = tagConfig.EnableTag && !tagConfig.OnlyCollection && !_isBoxSetHse &&
                     ((tagConfig.SourceType == "MediaInfo" && TagConfigTargetsSeason(tagConfig)) ||
                      (tagConfig.SourceType != "MediaInfo" && tSeaClean));
                 var matchedSeasonIds = new HashSet<Guid>();
@@ -1915,7 +1996,39 @@ namespace HomeScreenCompanion
             }
 
             if (!dryRun)
+            {
                 TagCacheManager.Instance.Save();
+                // Add this tag to the history file so a future full run can clean it up
+                // if the group is later deleted or disabled.
+                if (!string.IsNullOrEmpty(tagName))
+                {
+                    var _hist = LoadFileHistory("homescreencompanion_history.txt");
+                    if (!_hist.Any(t => string.Equals(t, tagName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        _hist.Add(tagName);
+                        SaveFileHistory("homescreencompanion_history.txt", _hist);
+                    }
+                }
+            }
+
+            var _boxSetFound = ApplyTagToSourceBoxSet(tagConfig, tagName, dryRun, cancellationToken);
+
+            // For BoxSet HSE groups, also tag sibling flat entries (same Name+Tag) that
+            // were not reached by FirstOrDefault — so the count matches the full-run behaviour.
+            int _boxSetTaggedCount = _boxSetFound ? 1 : 0;
+            if (_isBoxSetHse)
+            {
+                var siblings = config.Tags.Where(t =>
+                    t != tagConfig &&
+                    string.Equals((t.Name ?? "").Trim(), (tagConfig.Name ?? "").Trim(), StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals((t.Tag  ?? "").Trim(), tagName, StringComparison.OrdinalIgnoreCase) &&
+                    IsBoxSetHomeSectionEntry(t)).ToList();
+                foreach (var sib in siblings)
+                    if (ApplyTagToSourceBoxSet(sib, tagName, dryRun, cancellationToken))
+                        _boxSetTaggedCount++;
+            }
+
+            tagsRemoved += CleanupBoxSetTags(config, dryRun, cancellationToken);
 
             // Manage home sections for this entry
             var _singleGs = new GroupRunStats
@@ -1936,11 +2049,13 @@ namespace HomeScreenCompanion
             LogSummary($"[1/1] {_displayName}  ({_srcLabel})");
             if (_srcLabel == "MediaInfo")
                 LogSummary($"  Scanned: {_listCount} items · {matchedLocalItems.Count} matched");
+            else if (_isBoxSetHse)
+                LogSummary($"  Collections tagged: {_boxSetTaggedCount}");
             else if (_srcLabel == "LocalCollection" || _srcLabel == "LocalPlaylist")
                 LogSummary($"  Source: {_listCount} items · {matchedLocalItems.Count} matched");
             else
                 LogSummary($"  List: {_listCount} objects · {matchedLocalItems.Count} matched in library");
-            if (tagConfig.EnableTag && !tagConfig.OnlyCollection)
+            if (!_isBoxSetHse && tagConfig.EnableTag && !tagConfig.OnlyCollection)
                 LogSummary($"  Tag: +{tagsAdded} added, -{tagsRemoved} removed");
             if (tagConfig.EnableCollection)
                 LogSummary(_collCreated
@@ -1954,8 +2069,10 @@ namespace HomeScreenCompanion
 
             LogSummary("══════════════════════════════════════════════════");
             LogSummary("Summary");
-            if (tagConfig.EnableTag && !tagConfig.OnlyCollection)
+            if (tagConfig.EnableTag && !tagConfig.OnlyCollection && !_isBoxSetHse)
                 LogSummary($"  Tags:          +{tagsAdded} added,  -{tagsRemoved} removed");
+            if (_isBoxSetHse)
+                LogSummary($"  Collections tagged: {_boxSetTaggedCount}");
             if (tagConfig.EnableCollection)
                 LogSummary($"  Collections:   {(_collCreated ? 1 : 0)} created,   {(!_collCreated && collResult > 0 ? 1 : 0)} updated");
             if (tagConfig.EnableHomeSection)
@@ -1963,8 +2080,16 @@ namespace HomeScreenCompanion
             LogSummary($"  Done in {elapsedStr}  ·  {finalStatus}");
             LogSummary("══════════════════════════════════════════════════");
 
-            var parts = new List<string> { $"{matchedLocalItems.Count} matched" };
-            if (tagsAdded > 0 || tagsRemoved > 0) parts.Add($"{tagsAdded}↑ {tagsRemoved}↓ tags");
+            List<string> parts;
+            if (_isBoxSetHse)
+            {
+                parts = new List<string> { $"{_boxSetTaggedCount} collection{(_boxSetTaggedCount == 1 ? "" : "s")} tagged" };
+            }
+            else
+            {
+                parts = new List<string> { $"{matchedLocalItems.Count} matched" };
+                if (tagsAdded > 0 || tagsRemoved > 0) parts.Add($"{tagsAdded}↑ {tagsRemoved}↓ tags");
+            }
             if (collResult > 0) parts.Add("collection updated");
             if (dryRun) parts.Add("(dry run)");
             var summary = string.Join(", ", parts);
@@ -1995,38 +2120,49 @@ namespace HomeScreenCompanion
                 string _hsTagName = (tc.Tag ?? "").Trim();
                 string _hsDisplayName = !string.IsNullOrWhiteSpace(tc.Name) ? $"{tc.Name} [{_hsTagName}]" : _hsTagName;
 
+                // Deduplicate flat entries that share the same group (Name + Tag).
+                // Must happen before the inactive check so that duplicate flat entries
+                // for an inactive group don't each log a separate "home section removed".
+                var hsKey = (tc.Name ?? "") + "\x1F" + (tc.Tag ?? "");
+                bool isFirstForGroup = processedHsKeys.Add(hsKey);
+
                 if (!tc.EnableHomeSection || !isActive)
                 {
                     if (tc.HomeSectionTracked.Count > 0)
                     {
-                        int _removedHs = 0;
-                        foreach (var tracking in tc.HomeSectionTracked)
+                        if (isFirstForGroup)
                         {
-                            try
+                            // First flat entry for this group — do the actual removal and log it.
+                            int _removedHs = 0;
+                            foreach (var tracking in tc.HomeSectionTracked)
                             {
-                                var uid = _userManager.GetInternalId(tracking.UserId);
-                                DeleteSectionForUser(uid, tracking.SectionId, sectionMarker, tc.HomeSectionSettings, cancellationToken);
-                                _removedHs++;
+                                try
+                                {
+                                    var uid = _userManager.GetInternalId(tracking.UserId);
+                                    DeleteSectionForUser(uid, tracking.SectionId, sectionMarker, tc.HomeSectionSettings, cancellationToken);
+                                    _removedHs++;
+                                }
+                                catch (Exception ex)
+                                {
+                                    LogSummary($"  ! {_hsDisplayName}  ·  failed to remove home section: {ex.Message}", "Warn");
+                                }
                             }
-                            catch (Exception ex)
+                            if (_removedHs > 0)
                             {
-                                LogSummary($"  ! {_hsDisplayName}  ·  failed to remove home section: {ex.Message}", "Warn");
+                                var _gsR = statsList?.FirstOrDefault(s => s.TagName != null && string.Equals(s.TagName, _hsTagName, StringComparison.OrdinalIgnoreCase));
+                                if (_gsR != null) _gsR.HomeSectionRemoved = true;
+                                LogSummary($"  ~ {_hsDisplayName}  ·  home section removed  ({_removedHs} user{(_removedHs == 1 ? "" : "s")})");
                             }
                         }
-                        if (_removedHs > 0)
-                        {
-                            var _gsR = statsList?.FirstOrDefault(s => s.TagName != null && string.Equals(s.TagName, _hsTagName, StringComparison.OrdinalIgnoreCase));
-                            if (_gsR != null) _gsR.HomeSectionRemoved = true;
-                            LogSummary($"  ~ {_hsDisplayName}  ·  home section removed  ({_removedHs} user{(_removedHs == 1 ? "" : "s")})");
-                        }
+                        // Always clear tracking (including duplicate flat entries) so this
+                        // doesn't repeat on subsequent runs.
                         tc.HomeSectionTracked.Clear();
                         configChanged = true;
                     }
                     continue;
                 }
 
-                var hsKey = (tc.Name ?? "") + "\x1F" + (tc.Tag ?? "");
-                if (!processedHsKeys.Add(hsKey))
+                if (!isFirstForGroup)
                 {
                     if (tc.HomeSectionTracked.Count > 0) { tc.HomeSectionTracked.Clear(); configChanged = true; }
                     continue;
@@ -2231,6 +2367,90 @@ namespace HomeScreenCompanion
                 }
             }
             catch { }
+        }
+
+        // Returns true when this entry is a LocalCollection home section with media type = Collections.
+        // Used to decide that only the BoxSet itself (not its items) should receive the tag.
+        private bool IsBoxSetHomeSectionEntry(TagConfig tc)
+        {
+            if (!tc.EnableHomeSection || tc.SourceType != "LocalCollection" || string.IsNullOrEmpty(tc.LocalSourceId)) return false;
+            var sd = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            try { sd = _jsonSerializer.DeserializeFromString<Dictionary<string, string>>(tc.HomeSectionSettings ?? "{}") ?? sd; } catch { return false; }
+            if (!sd.TryGetValue("ItemTypes", out var itJson) || string.IsNullOrEmpty(itJson)) return false;
+            string[] it;
+            try { it = _jsonSerializer.DeserializeFromString<string[]>(itJson) ?? Array.Empty<string>(); }
+            catch { it = itJson.Split(',').Select(s => s.Trim()).Where(s => s.Length > 0).ToArray(); }
+            return it.Any(t => string.Equals(t, "BoxSet", StringComparison.OrdinalIgnoreCase));
+        }
+
+        // Returns true if the target BoxSet was found (and tagged if needed), false if not found.
+        private bool ApplyTagToSourceBoxSet(TagConfig tc, string tagName, bool dryRun, CancellationToken cancellationToken)
+        {
+            // Only ADDS the tag to the target BoxSet. Removal of stale tags is handled by CleanupBoxSetTags
+            // after all entries have run, so multiple entries sharing the same tag don't undo each other.
+            if (!IsBoxSetHomeSectionEntry(tc) || string.IsNullOrEmpty(tagName)) return false;
+
+            var allBoxSets = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { "BoxSet" }, Recursive = true });
+            var target = allBoxSets.FirstOrDefault(b => string.Equals(b.Name, tc.LocalSourceId, StringComparison.OrdinalIgnoreCase));
+            if (target == null) { LogSummary($"  ! BoxSet '{tc.LocalSourceId}' not found in library", "Warn"); return false; }
+
+            var hasTag = (target.Tags ?? Array.Empty<string>()).Any(t => string.Equals(t, tagName, StringComparison.OrdinalIgnoreCase));
+            if (!hasTag)
+            {
+                target.AddTag(tagName);
+                if (!dryRun)
+                {
+                    try { _libraryManager.UpdateItem(target, target.Parent, ItemUpdateType.MetadataEdit, null); }
+                    catch (Exception ex) { LogSummary($"  ! Failed to update BoxSet '{target.Name}': {ex.Message}", "Warn"); }
+                }
+            }
+            return true;
+        }
+
+        // Runs once per full/single run — removes the BoxSet tag from any BoxSet that is no longer a target,
+        // and adds it to any that should have it. Handles multiple entries sharing the same tag correctly.
+        private int CleanupBoxSetTags(PluginConfiguration config, bool dryRun, CancellationToken cancellationToken)
+        {
+            // activeTags: for each tag, which BoxSet names should currently have it
+            var activeTags = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            // allHseTags: every tag managed by any BoxSet-HSE entry (to know what to clean up)
+            var allHseTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var tc in config.Tags)
+            {
+                if (!IsBoxSetHomeSectionEntry(tc) || string.IsNullOrEmpty(tc.Tag)) continue;
+                allHseTags.Add(tc.Tag);
+                if (tc.Active && !string.IsNullOrEmpty(tc.LocalSourceId))
+                {
+                    if (!activeTags.ContainsKey(tc.Tag))
+                        activeTags[tc.Tag] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    activeTags[tc.Tag].Add(tc.LocalSourceId);
+                }
+            }
+
+            if (allHseTags.Count == 0) return 0;
+
+            int removed = 0;
+            var allBoxSets = _libraryManager.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { "BoxSet" }, Recursive = true });
+            foreach (var boxSet in allBoxSets)
+            {
+                bool updated = false;
+                foreach (var tagName in allHseTags)
+                {
+                    var hasTag    = (boxSet.Tags ?? Array.Empty<string>()).Any(t => string.Equals(t, tagName, StringComparison.OrdinalIgnoreCase));
+                    activeTags.TryGetValue(tagName, out var targets);
+                    var shouldHave = targets != null && targets.Any(n => string.Equals(n, boxSet.Name, StringComparison.OrdinalIgnoreCase));
+                    if (shouldHave == hasTag) continue;
+                    if (shouldHave) boxSet.AddTag(tagName); else { boxSet.RemoveTag(tagName); removed++; }
+                    updated = true;
+                }
+                if (updated && !dryRun)
+                {
+                    try { _libraryManager.UpdateItem(boxSet, boxSet.Parent, ItemUpdateType.MetadataEdit, null); }
+                    catch (Exception ex) { LogSummary($"  ! Failed to update BoxSet '{boxSet.Name}': {ex.Message}", "Warn"); }
+                }
+            }
+            return removed;
         }
 
         internal static ContentSection BuildContentSection(IJsonSerializer jsonSerializer, Dictionary<string, string> settings, string libraryId, ContentSection existing = null)

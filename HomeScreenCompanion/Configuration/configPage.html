@@ -1177,7 +1177,7 @@
                     </div>
                     <div class="src-card">
                         <div class="src-card-title"><i class="md-icon" style="font-size:1.1em;color:#52B54B;">video_library</i> Local</div>
-                        Pick an existing <strong>playlist</strong> or <strong>collection</strong> in Emby. Every item in that list gets the configured tag or collection.
+                        Pick an existing <strong>playlist</strong> or <strong>collection</strong> in Emby. Every item in that list gets the configured tag or collection. When the Home Screen tab uses <em>Media Type: Collections</em>, the tag is applied to the <strong>collection itself</strong> instead — making it appear as a section in the home screen.
                     </div>
                     <div class="src-card">
                         <div class="src-card-title"><i class="md-icon" style="font-size:1.1em;color:#52B54B;">tune</i> MediaInfo</div>
@@ -1225,7 +1225,7 @@
                     </div>
                     <div class="src-card">
                         <div class="src-card-title"><i class="md-icon" style="font-size:1.1em;color:#52B54B;">tv</i> Home Screen tab</div>
-                        Automatically add this source's items as a home screen section for specific users each time sync runs.
+                        Automatically add this source's items as a home screen section for specific users each time sync runs. Set <em>Media Type: Collections</em> to show a collection row — the tag is then applied to the collection itself, not its items.
                     </div>
                 </div>
 
@@ -1253,6 +1253,10 @@
                 <div class="help-feature-row">
                     <i class="md-icon help-feat-icon">tv</i>
                     <div><strong>Home Section per source</strong> — Each source can add its matched items as a dedicated home screen section for specific users. Configure this in the <em>Home Screen</em> tab inside each source card. Independent from the Home Screen Companion copy feature.</div>
+                </div>
+                <div class="help-feature-row">
+                    <i class="md-icon help-feat-icon">collections</i>
+                    <div><strong>Home Section — Collections mode</strong> — Use source type <em>Local</em> pointing to an existing Emby collection, set the tag name, and in the <em>Home Screen</em> tab choose <em>Media Type: Collections</em>. The plugin will apply the tag to the <strong>collection itself</strong> (not to the films/series inside it), so it appears as a collection row in the home screen. Items inside the collection are never tagged in this mode.</div>
                 </div>
                 <div class="help-feature-row">
                     <i class="md-icon help-feat-icon">block</i>

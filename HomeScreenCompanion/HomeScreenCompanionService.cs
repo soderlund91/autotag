@@ -93,7 +93,7 @@ namespace HomeScreenCompanion
 
     [Route("/HomeScreenCompanion/Manage/Tags", "GET")]
     public class GetManagedTagsRequest : IReturn<GetManagedTagsResponse> { }
-    public class ManagedTagInfo { public string Id { get; set; } = ""; public string Name { get; set; } = ""; public int ItemCount { get; set; } }
+    public class ManagedTagInfo { public string Id { get; set; } = ""; public string Name { get; set; } = ""; public int ItemCount { get; set; } public List<string> ItemTypes { get; set; } = new List<string>(); }
     public class GetManagedTagsResponse { public List<ManagedTagInfo> Tags { get; set; } = new List<ManagedTagInfo>(); }
 
     [Route("/HomeScreenCompanion/Manage/Collections", "GET")]
@@ -145,6 +145,23 @@ public class HomeScreenCompanionService : IService
                 Logs = logs,
                 IsRunning = HomeScreenCompanionTask.IsRunning
             };
+        }
+
+        private static string GetItemTypeKey(BaseItem item)
+        {
+            try
+            {
+                dynamic d = item;
+                var extraType = d.ExtraType;
+                if (extraType != null)
+                {
+                    var s = extraType.ToString();
+                    if (!string.IsNullOrEmpty(s) && s != "0" && s != "None")
+                        return s; // ThemeSong, ThemeVideo, Trailer, BehindTheScenes, etc.
+                }
+            }
+            catch { }
+            return item.GetType().Name;
         }
 
         private static void DeleteOldImage(string oldFilePath, string imagesDir)
@@ -652,17 +669,23 @@ public class HomeScreenCompanionService : IService
             var allItems = _libraryManager.GetItemList(new InternalItemsQuery
             {
                 Recursive = true,
-                IsVirtualItem = false
+                IsVirtualItem = false,
+                IncludeItemTypes = new[] { "Movie", "Series", "Episode", "Season", "Audio", "MusicVideo", "MusicAlbum", "MusicArtist", "Book", "Game", "Trailer", "Video" }
             });
             var tagCount = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var tagTypes = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
             foreach (var item in allItems)
             {
                 if (item.Tags == null) continue;
+                var typeKey = GetItemTypeKey(item);
                 foreach (var tag in item.Tags)
                 {
                     if (string.IsNullOrWhiteSpace(tag)) continue;
                     tagCount.TryGetValue(tag, out var c);
                     tagCount[tag] = c + 1;
+                    if (!tagTypes.TryGetValue(tag, out var typeSet))
+                        tagTypes[tag] = typeSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    typeSet.Add(typeKey);
                 }
             }
             var tagItems = _libraryManager.GetItemList(new InternalItemsQuery
@@ -680,7 +703,8 @@ public class HomeScreenCompanionService : IService
                 {
                     Name = kv.Key,
                     ItemCount = kv.Value,
-                    Id = tagIdMap.TryGetValue(kv.Key, out var tid) ? tid : ""
+                    Id = tagIdMap.TryGetValue(kv.Key, out var tid) ? tid : "",
+                    ItemTypes = tagTypes.TryGetValue(kv.Key, out var typeSet2) ? typeSet2.ToList() : new List<string>()
                 })
                 .OrderBy(t => t.Name)
                 .ToList();

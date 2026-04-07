@@ -727,7 +727,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             CollectionTargetSeason:  !!(row.querySelector('.chkCollTargetSeason')  || {}).checked,
             CollectionTargetSeries:  !!(row.querySelector('.chkCollTargetSeries')  || {}).checked,
             MediaInfoTargetEpisode: false, MediaInfoTargetSeason: false, MediaInfoTargetSeries: false,
-            MediaInfoTargetType: '', MediaInfoSeasonMode: false
+            MediaInfoTargetType: '', MediaInfoSeasonMode: false,
         };
     }
 
@@ -1201,11 +1201,11 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
 
     function getSourceBadgeHtml(st) {
         var map = {
-            'External':        { icon: 'language',       title: 'External List' },
-            'LocalCollection': { icon: 'folder_special', title: 'Local Collection' },
-            'LocalPlaylist':   { icon: 'playlist_play',  title: 'Local Playlist' },
-            'MediaInfo':       { icon: 'tune',           title: 'Smart Playlist' },
-            'AI':              { icon: 'auto_awesome',   title: 'AI created lists' }
+            'External':          { icon: 'language',        title: 'External List' },
+            'LocalCollection':   { icon: 'folder_special',  title: 'Local Collection' },
+            'LocalPlaylist':     { icon: 'playlist_play',   title: 'Local Playlist' },
+            'MediaInfo':         { icon: 'tune',            title: 'Smart Playlist' },
+                'AI':              { icon: 'auto_awesome',   title: 'AI created lists' }
         };
         var e = map[st];
         if (!e) return '';
@@ -1344,6 +1344,14 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                             <option value="MediaInfo" ${sourceType === 'MediaInfo' ? 'selected' : ''}>Local Media Information (Smart Playlist)</option>
                             <option value="AI" ${sourceType === 'AI' ? 'selected' : ''}>AI created lists</option>
                         </select>
+                        <p class="source-type-hint" style="margin:6px 0 0 0; font-size:1em; opacity:0.8; line-height:1.4;">${(function(st) {
+                            if (st === 'External')         return 'Use an external list to tag, or create a collection, from the items that match your library.';
+                            if (st === 'LocalCollection') return 'Every item in the selected collection(s) gets the configured tag or is added to a new collection. You can also use this to create a curated list of selected collections as a home screen section.';
+                            if (st === 'LocalPlaylist')   return 'Every item in the selected playlist(s) gets the configured tag or is added to a new collection.';
+                            if (st === 'MediaInfo')       return 'Filter your own library to select which movies or shows to tag or create a collection of. This is also known as a Smart Playlist.';
+                            if (st === 'AI')              return 'Use AI to create a list. Write your prompt and the AI will build a list based on it.';
+                            return '';
+                        })(sourceType)}</p>
                     </div>
 
                     <div class="source-external-container" style="display: ${sourceType === 'External' ? 'block' : 'none'};">
@@ -1414,7 +1422,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                         </div>
                     </div>
 
-                    <div class="source-mediainfo-container" style="display: ${sourceType && sourceType !== '' ? 'block' : 'none'};">
+                    <div class="source-mediainfo-container" style="display: ${(sourceType && sourceType !== '') ? 'block' : 'none'};">
                         <div class="mi-limit-row" style="display:${sourceType === 'MediaInfo' ? 'flex' : 'none'}; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap;">
                             <label style="font-size:0.9em; white-space:nowrap; margin:0;">Max items</label>
                             <input is="emby-input" class="txtMediaInfoLimit" type="number" value="${mediaInfoLimit}" min="0" style="width:90px;" />
@@ -1466,33 +1474,35 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 </div>
 
             <div class="tab-content tagname-tab" style="display:none;">
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label>
-                            <input is="emby-checkbox" type="checkbox" class="chkEnableTag" ${enableTag} />
-                            <span>Apply Tag</span>
-                        </label>
-                        <div class="fieldDescription">Automatically tag matched items in Emby.</div>
-                    </div>
-                    <div class="tag-settings" style="margin-left: 20px; padding-left: 15px; border-left: 2px solid var(--line-color); margin-top: 10px; display: ${tagConfig.EnableTag !== false ? 'block' : 'none'};">
-                        <div class="inputContainer" style="flex-grow:1;"><input is="emby-input" class="txtTagName" type="text" label="Tag Name" value="${tagName}" placeholder="${labelName}" /></div>
-                        <div class="mi-tag-target-section" style="margin-top:14px;">
-                            <div style="font-size:0.85em; opacity:0.6; margin-bottom:6px; display:flex; align-items:center; gap:8px;">
-                                <span>For TV shows, choose what level to tag:</span>
-                                <button type="button" is="emby-button" class="btnTagTargetHelp raised" style="background:transparent; border:1px solid rgba(128,128,128,0.35); color:var(--theme-text-secondary); font-size:0.82em; padding:0 10px; min-width:0;"><i class="md-icon" style="font-size:1em; margin-right:4px;">help_outline</i><span>How to use</span></button>
-                            </div>
-                            <div style="display:flex; flex-direction:row; align-items:center; gap:20px;">
-                                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap;">
-                                    <input type="checkbox" is="emby-checkbox" class="chkTagTargetSeries" ${_tagTargetSer ? 'checked' : ''} />
-                                    <span>Series</span>
-                                </label>
-                                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap;">
-                                    <input type="checkbox" is="emby-checkbox" class="chkTagTargetSeason" ${_tagTargetSea ? 'checked' : ''} />
-                                    <span>Season</span>
-                                </label>
-                                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap;">
-                                    <input type="checkbox" is="emby-checkbox" class="chkTagTargetEpisode" ${_tagTargetEp ? 'checked' : ''} />
-                                    <span>Episode</span>
-                                </label>
+                    <div class="inputContainer" style="flex-grow:1;"><input is="emby-input" class="txtTagName" type="text" label="Tag Name" value="${tagName}" placeholder="${labelName}" /></div>
+                    <div class="tag-tab-controls" style="margin-top:10px;">
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label>
+                                <input is="emby-checkbox" type="checkbox" class="chkEnableTag" ${enableTag} />
+                                <span>Apply Tag</span>
+                            </label>
+                            <div class="fieldDescription">Automatically tag matched items in Emby.</div>
+                        </div>
+                        <div class="tag-settings" style="margin-left: 20px; padding-left: 15px; border-left: 2px solid var(--line-color); margin-top: 10px; display: ${tagConfig.EnableTag !== false ? 'block' : 'none'};">
+                            <div class="mi-tag-target-section" style="margin-top:4px;">
+                                <div style="font-size:0.85em; opacity:0.6; margin-bottom:6px; display:flex; align-items:center; gap:8px;">
+                                    <span>For TV shows, choose what level to tag:</span>
+                                    <button type="button" is="emby-button" class="btnTagTargetHelp raised" style="background:transparent; border:1px solid rgba(128,128,128,0.35); color:var(--theme-text-secondary); font-size:0.82em; padding:0 10px; min-width:0;"><i class="md-icon" style="font-size:1em; margin-right:4px;">help_outline</i><span>How to use</span></button>
+                                </div>
+                                <div style="display:flex; flex-direction:row; align-items:center; gap:20px;">
+                                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap;">
+                                        <input type="checkbox" is="emby-checkbox" class="chkTagTargetSeries" ${_tagTargetSer ? 'checked' : ''} />
+                                        <span>Series</span>
+                                    </label>
+                                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap;">
+                                        <input type="checkbox" is="emby-checkbox" class="chkTagTargetSeason" ${_tagTargetSea ? 'checked' : ''} />
+                                        <span>Season</span>
+                                    </label>
+                                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap;">
+                                        <input type="checkbox" is="emby-checkbox" class="chkTagTargetEpisode" ${_tagTargetEp ? 'checked' : ''} />
+                                        <span>Episode</span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1512,6 +1522,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 </div>
 
                 <div class="tab-content collection-tab" style="display:none;">
+                    <div class="collection-tab-controls">
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label>
                             <input is="emby-checkbox" type="checkbox" class="chkEnableCollection" ${enableColl} />
@@ -1576,6 +1587,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                                 <button type="button" is="emby-button" class="btnLoadPosterUrl raised btn-neutral">Load</button>
                             </div>
                         </div>
+                    </div>
                     </div>
                 </div>
 
@@ -1705,8 +1717,20 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 var type = e.target.value;
                 row.querySelector('.source-external-container').style.display = type === 'External' ? 'block' : 'none';
                 row.querySelector('.source-local-container').style.display = (type === 'LocalCollection' || type === 'LocalPlaylist') ? 'block' : 'none';
-                row.querySelector('.source-mediainfo-container').style.display = type ? 'block' : 'none';
+                row.querySelector('.source-mediainfo-container').style.display = (type && type !== '') ? 'block' : 'none';
                 row.querySelector('.source-ai-container').style.display = type === 'AI' ? 'block' : 'none';
+
+                var _hint = row.querySelector('.source-type-hint');
+                if (_hint) {
+                    var _hints = {
+                        'External':         'Use an external list to tag, or create a collection, from the items that match your library.',
+                        'LocalCollection':  'Every item in the selected collection(s) gets the configured tag or is added to a new collection. You can also use this to create a curated list of selected collections as a home screen section.',
+                        'LocalPlaylist':    'Every item in the selected playlist(s) gets the configured tag or is added to a new collection.',
+                        'MediaInfo':        'Filter your own library to select which movies or shows to tag or create a collection of. This is also known as a Smart Playlist.',
+                        'AI':               'Use AI to create a list. Write your prompt and the AI will build a list based on it.'
+                    };
+                    _hint.textContent = _hints[type] || '';
+                }
 
                 var isMi = type === 'MediaInfo';
                 var miLimitRow      = row.querySelector('.mi-limit-row');
@@ -2130,7 +2154,9 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             if (hseCustomTitle) hseCustomTitle.setAttribute('placeholder', lbl);
             updateBadges(row);
         }
-        row.querySelector('.txtEntryLabel').addEventListener('input', updateTagTitle);
+        row.querySelector('.txtEntryLabel').addEventListener('input', function() {
+            updateTagTitle();
+        });
         row.querySelector('.txtTagName').addEventListener('input', updateTagTitle);
 
         var handle = row.querySelector('.drag-handle');
@@ -2428,24 +2454,26 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         var savedItemTypesStr = savedItemTypes.length > 0 ? savedItemTypes.join(',') : 'Movie,Series';
         html += '<div class="hse-items-only" style="margin-bottom:12px;"><label class="selectLabel">Media Type</label>';
         html += '<select is="emby-select" class="selHseItemTypes" style="width:100%;">';
-        [
-            ['Movie',        'Movies'],
-            ['Series',       'Shows'],
-            ['Movie,Series', 'Movies & Shows'],
-            ['Episode',      'Episodes'],
-            ['MusicVideo',   'Music Videos'],
-            ['Video',        'Videos'],
-            ['Photo',        'Photos'],
-            ['Program',      'Programs'],
-            ['TvChannel',    'Live TV Channels'],
-            ['MusicAlbum',   'Music Albums'],
-            ['MusicArtist',  'Artists'],
-            ['Audio',        'Songs'],
-            ['AudioBook',    'Audiobooks'],
-            ['Trailer',      'Trailers'],
-            ['Game',         'Games'],
-            ['Book',         'Books']
-        ].forEach(function(o) {
+        var itemTypeOptions = [
+                ['Movie',        'Movies'],
+                ['Series',       'Shows'],
+                ['Movie,Series', 'Movies & Shows'],
+                ['Episode',      'Episodes'],
+                ['BoxSet',       'Collections'],
+                ['MusicVideo',   'Music Videos'],
+                ['Video',        'Videos'],
+                ['Photo',        'Photos'],
+                ['Program',      'Programs'],
+                ['TvChannel',    'Live TV Channels'],
+                ['MusicAlbum',   'Music Albums'],
+                ['MusicArtist',  'Artists'],
+                ['Audio',        'Songs'],
+                ['AudioBook',    'Audiobooks'],
+                ['Trailer',      'Trailers'],
+                ['Game',         'Games'],
+                ['Book',         'Books']
+              ];
+        itemTypeOptions.forEach(function(o) {
             html += '<option value="' + o[0] + '"' + (savedItemTypesStr === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
         });
         html += '</select></div>';
@@ -3032,7 +3060,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     TagTargetSeries:  t.TagTargetSeries  || false,
                     CollectionTargetEpisode: t.CollectionTargetEpisode || false,
                     CollectionTargetSeason:  t.CollectionTargetSeason  || false,
-                    CollectionTargetSeries:  t.CollectionTargetSeries  || false
+                    CollectionTargetSeries:  t.CollectionTargetSeries  || false,
                 };
             }
             if (t.SourceType === 'External' && t.Url) grouped[key].Urls.push({ url: t.Url, limit: t.Limit });
@@ -3222,7 +3250,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
 
             var btnStyle = 'cursor:pointer;border:none;border-radius:3px;padding:4px 12px;font-size:0.82em;font-weight:500;';
 
-            function renderSection(title, items, isTagSection) {
+            function renderSection(title, items, isTagSection, headerExtra) {
                 var sectionId = isTagSection ? 'tcTagSection' : 'tcCollSection';
                 var rows = items.length === 0
                     ? '<div style="color:var(--theme-text-secondary);padding:8px 0;">No items found.</div>'
@@ -3234,7 +3262,8 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                         var badge = managed && managed.length > 0
                             ? '<span style="font-size:0.75em;background:#52B54B22;color:#52B54B;border:1px solid #52B54B55;border-radius:4px;padding:1px 6px;margin-left:8px;white-space:nowrap;">Managed by HSC Plugin</span>'
                             : '';
-                        return '<tr class="tc-manage-row" data-rowname="' + escAttr(name.toLowerCase()) + '" data-managed="' + (managed && managed.length > 0 ? '1' : '0') + '" data-count="' + count + '">' +
+                        var typesVal = isTagSection ? (item.ItemTypes || []).map(function (t) { return t.toLowerCase(); }).join(',') : '';
+                        return '<tr class="tc-manage-row" data-rowname="' + escAttr(name.toLowerCase()) + '" data-managed="' + (managed && managed.length > 0 ? '1' : '0') + '" data-count="' + count + '" data-types="' + escAttr(typesVal) + '">' +
                             '<td style="padding:9px 4px;border-bottom:1px solid var(--line-color);width:100%;max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
                             (id
                                 ? '<a class="tc-item-name tc-nav-link" href="javascript:void(0)" data-navid="' + escAttr(id) + '" style="color:inherit;text-decoration:none;cursor:pointer;" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">' + escHtml(name) + '</a>'
@@ -3249,8 +3278,9 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                     }).join('');
 
                 return '<div id="' + sectionId + '" style="flex:1 1 300px;min-width:0;">' +
-                    '<div style="display:flex;align-items:center;margin-bottom:12px;">' +
+                    '<div style="display:flex;align-items:center;gap:30px;margin-bottom:12px;">' + 
                     '<h3 style="margin:0;font-size:1em;text-transform:uppercase;letter-spacing:1px;color:#52B54B;">' + escHtml(title) + '</h3>' +
+                    (headerExtra || '') +
                     '<button type="button" class="btnTcRefresh" style="' + btnStyle + 'background:transparent;color:var(--theme-text-secondary);border:1px solid var(--line-color);margin-left:auto;"><i class="md-icon" style="font-size:1em;vertical-align:middle;">refresh</i></button>' +
                     '</div>' +
                     '<table class="tc-manage-list" style="width:100%;border-collapse:collapse;"><tbody>' + rows + '</tbody></table>' +
@@ -3258,6 +3288,42 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
             }
 
             var searchInputStyle = 'background:rgba(128,128,128,0.08);border:1px solid var(--line-color);border-radius:4px;padding:5px 10px;font-size:0.9em;color:inherit;width:400px;max-width:100%;';
+
+            var tcTypeGroups = [
+                { label: 'Movies',       types: ['movie'] },
+                { label: 'Series',       types: ['series'] },
+                { label: 'Episodes',     types: ['episode'] },
+                { label: 'Seasons',      types: ['season'] },
+                { label: 'Music',        types: ['audio', 'musicvideo', 'musicalbum', 'musicartist'] },
+                { label: 'Books',        types: ['book'] },
+                { label: 'Games',        types: ['game'] },
+                { label: 'Trailers',     types: ['trailer'] },
+                { label: 'Theme songs',  types: ['themesong'] },
+                { label: 'Theme videos', types: ['themevideo', 'video'] }
+            ];
+
+            var presentGroups = tcTypeGroups.filter(function (g) {
+                return (tagsData.Tags || []).some(function (tag) {
+                    return (tag.ItemTypes || []).some(function (t) {
+                        return g.types.indexOf(t.toLowerCase()) !== -1;
+                    });
+                });
+            });
+
+            var typeFilterDropdownHtml = presentGroups.length > 0
+                ? '<div class="filter-dropdown-wrapper" id="tcTypeFilterWrap">' +
+                  '<div class="filter-dropdown-btn" id="tcTypeFilterBtn">' +
+                  '<i class="md-icon" style="font-size:1.1em;">filter_list</i>' +
+                  '<span id="tcTypeFilterLabel">Filter tags</span>' +
+                  '<i class="md-icon" style="font-size:0.9em;opacity:0.6;" id="tcTypeFilterCaret">expand_more</i>' +
+                  '</div>' +
+                  '<div class="filter-dropdown-panel" id="tcTypeFilterDropdown">' +
+                  '<div class="filter-dropdown-label">Media type</div>' +
+                  presentGroups.map(function (g) {
+                      return '<label class="filter-chk-row"><input type="checkbox" class="cbTypeFilter" data-group="' + escAttr(g.label) + '"> <span>' + escHtml(g.label) + '</span></label>';
+                  }).join('') +
+                  '</div></div>'
+                : '';
 
             container.innerHTML =
                 '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">' +
@@ -3271,24 +3337,52 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
                 '</select>' +
                 '</div>' +
                 '<div id="tcSectionsWrap" style="display:flex;gap:40px;align-items:flex-start;">' +
-                renderSection('Tags', tagsData.Tags || [], true) +
+                renderSection('Tags', tagsData.Tags || [], true, typeFilterDropdownHtml) +
                 renderSection('Collections', collectionsData.Collections || [], false) +
                 '</div>';
 
             container.dataset.loaded = '1';
 
+            function getSelectedTypeGroups() {
+                return Array.from(container.querySelectorAll('.cbTypeFilter:checked')).map(function (cb) { return cb.dataset.group; });
+            }
+
+            function rowMatchesTypeFilter(row, selectedGroups) {
+                if (selectedGroups.length === 0) return true;
+                var rowTypes = (row.dataset.types || '').split(',').filter(Boolean);
+                return selectedGroups.some(function (groupLabel) {
+                    var group = tcTypeGroups.find(function (g) { return g.label === groupLabel; });
+                    if (!group) return false;
+                    return rowTypes.some(function (t) { return group.types.indexOf(t) !== -1; });
+                });
+            }
+
+            function updateTypeFilterBtn() {
+                var btn = container.querySelector('#tcTypeFilterBtn');
+                var lbl = container.querySelector('#tcTypeFilterLabel');
+                if (!btn || !lbl) return;
+                var selected = getSelectedTypeGroups();
+                lbl.textContent = selected.length === 0 ? 'Filter tags' : selected.length + ' type' + (selected.length > 1 ? 's' : '');
+                if (selected.length > 0) btn.classList.add('active');
+                else btn.classList.remove('active');
+            }
+
             function applySearchSort() {
                 var query = (container.querySelector('#tcSearch').value || '').toLowerCase();
                 var sort = container.querySelector('#tcSort').value;
+                var selectedGroups = getSelectedTypeGroups();
 
                 ['tcTagSection', 'tcCollSection'].forEach(function (sectionId) {
                     var section = container.querySelector('#' + sectionId);
                     if (!section) return;
                     var rows = Array.from(section.querySelectorAll('.tc-manage-row'));
+                    var isTagSection = sectionId === 'tcTagSection';
 
                     rows.forEach(function (row) {
                         var rowName = row.dataset.rowname || '';
-                        row.style.display = (!query || rowName.indexOf(query) !== -1) ? '' : 'none';
+                        var nameMatch = !query || rowName.indexOf(query) !== -1;
+                        var typeMatch = !isTagSection || rowMatchesTypeFilter(row, selectedGroups);
+                        row.style.display = (nameMatch && typeMatch) ? '' : 'none';
                     });
 
                     var list = section.querySelector('.tc-manage-list');
@@ -3314,6 +3408,31 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
 
             container.querySelector('#tcSearch').addEventListener('input', applySearchSort);
             container.querySelector('#tcSort').addEventListener('change', applySearchSort);
+
+            var typeFilterBtn = container.querySelector('#tcTypeFilterBtn');
+            var typeFilterDropdown = container.querySelector('#tcTypeFilterDropdown');
+            var typeFilterCaret = container.querySelector('#tcTypeFilterCaret');
+            if (typeFilterBtn && typeFilterDropdown) {
+                typeFilterBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    var open = typeFilterDropdown.classList.toggle('open');
+                    if (typeFilterCaret) typeFilterCaret.textContent = open ? 'expand_less' : 'expand_more';
+                });
+                typeFilterDropdown.addEventListener('change', function (e) {
+                    if (e.target.classList.contains('cbTypeFilter')) {
+                        updateTypeFilterBtn();
+                        applySearchSort();
+                    }
+                });
+                document.addEventListener('click', function closeTypeFilter(e) {
+                    if (!typeFilterDropdown.contains(e.target) && !typeFilterBtn.contains(e.target)) {
+                        typeFilterDropdown.classList.remove('open');
+                        if (typeFilterCaret) typeFilterCaret.textContent = 'expand_more';
+                    }
+                    if (!container.isConnected) document.removeEventListener('click', closeTypeFilter);
+                });
+            }
+
             applySearchSort();
 
             function updateSaveButton() {
