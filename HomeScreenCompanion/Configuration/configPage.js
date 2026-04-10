@@ -458,7 +458,7 @@ define(['emby-input', 'emby-button', 'emby-select', 'emby-checkbox'], function (
         return `
             <div class="url-row" style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
                 <div style="flex-grow:1;">
-                    <input is="emby-input" class="txtTagUrl" type="text" label="Trakt/MDBList URL or ID" value="${val}" />
+                    <input is="emby-input" class="txtTagUrl" type="text" label="Trakt/MDBList URL" value="${val}" />
                 </div>
                 <div style="width:110px;">
                     <input is="emby-input" class="txtUrlLimit" type="number" label="Max (0=All)" value="${lim}" min="0" />
