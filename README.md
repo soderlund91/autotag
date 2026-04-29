@@ -9,6 +9,8 @@
 
 It works by connecting one or more **sources** to a tag and/or collection in your Emby library. Sources can be external lists from Trakt or MDBList, rules-based filters on your own library, AI-generated recommendations, or your existing local collections and playlists. Each source runs on a schedule, and the plugin makes sure your library always reflects the current state — adding and removing tags and collection memberships automatically.
 
+The plugin can then automaticly create home sections, for one or all users, based of these tags or collections and also manage them. The plugin can also make a "Top 10" type of list with numbers on the poster, enabling you to create a today or weekly top-list with unlimited items. This feature is also available with a manual top-list where you as admin hand pick movies. 
+
 > [!IMPORTANT]
 >
 > From plugin version 3.3.0.0, Emby beta server 4.10.0.8+ is required
@@ -22,6 +24,7 @@ It works by connecting one or more **sources** to a tag and/or collection in you
 - **Automatic tagging and collections** — items are added and removed as lists change
 - **Advanced scheduling** — annual, weekly, or specific date windows
 - **Per-entry home screen sections** — automatically managed sections for any tag or collection
+- **Top-list** — Create numbered top-list, both automatic from your tags, or manually pick the movies.
 - **Home screen sync** — mirror one user's home screen layout to any number of other users
 
 ---
@@ -171,6 +174,18 @@ Mirror one user's full home screen layout to any number of other users — autom
 | **Target users** | Users whose home screens will be overwritten to match the source |
 
 The plugin page shows last sync time, result, and number of sections copied.
+
+---
+
+## Top-list
+
+Create a top-list with numbered posters. For example you can create a "weekly top 20" or "daily top 10" kind of list. The plugin will then create a new library and fill this with .strm files for the selected movies, and the change the posters putting a number on them. 
+The top list will update according to your tags.
+
+This feature is also available if you want to create a manual list where you hand pick the movies. 
+
+<img width="1642" height="402" alt="image" src="https://github.com/user-attachments/assets/2bf609f1-3787-43a6-883b-7d6418199a33" />
+
 
 ---
 
