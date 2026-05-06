@@ -129,6 +129,19 @@ Any source type can automatically maintain an Emby Collection alongside its tag.
 When a source is disabled or its schedule ends, the plugin automatically removes the collection.
 
 ---
+## Playlist
+
+Any source type can automatically maintain an Emby Collection alongside its tag.
+
+| Setting | Description |
+| :--- | :--- |
+| **Create Playlist** | Automatically create and manage an Emby Playlist for this entry |
+| **Playlist Name** | Optional custom name (defaults to the tag name) |
+| **Target Users** | Select what user(s) to create the playlist for. Each user get ther individual playlsit. |
+
+When a source is disabled or its schedule ends, the plugin automatically removes the collection.
+
+---
 
 ## Scheduling
 
