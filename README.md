@@ -224,20 +224,44 @@ The plugin page has three tabs: **Tag and Collection**, **Home Screen**, and **S
 ---
 
 ### Screenshots
+#### Main screen
+<img width="800" style="height:auto;" alt="image" src="https://github.com/user-attachments/assets/0121c3a8-e307-429b-8da2-55f2d48388dc" />
 
-<img width="768" height="673" alt="main" src="https://github.com/user-attachments/assets/efc94da5-030a-4380-ab07-5ec9e5ff7151" />
+#### New group
+<img width="800" style="height:auto;" alt="image" src="https://github.com/user-attachments/assets/79f5b64f-359a-4520-9e59-bc6cf69e26c3" />
+
+#### Local media information (smart playlist)
+<img width="800" style="height:auto;" alt="image" src="https://github.com/user-attachments/assets/e0ee1f02-1f66-48e9-ae84-e1c8353bff58" />
+
+#### Scheduler
+<img width="800" style="height:auto;" alt="image" src="https://github.com/user-attachments/assets/ad2e72ea-f8cc-49e1-9482-c36aed6d54a7" />
+
+#### Add as home screen section
+<img width="800" style="height:auto;" alt="588493904-129607ed-b15e-484c-8a7b-c3abd3343beb" src="https://github.com/user-attachments/assets/54694edd-b7b5-4efd-8895-86b9533ffffc" />
+
+#### Create top-list page
+<img width="800" style="height:auto;" alt="image" src="https://github.com/user-attachments/assets/88576c4c-4ac7-4339-9a33-cd9e94342844" />
+
+#### Home screen manager (copy settings)
+<img width="800" style="height:auto;" alt="588494512-b10a99c7-c518-413b-90e8-3add2bcdf6c5" src="https://github.com/user-attachments/assets/8628bada-c908-42e8-987f-cce2608c7031" />
 
 
-<img width="740" height="936" alt="lmi" src="https://github.com/user-attachments/assets/f2e0f1f4-fdc0-4eea-b9ef-a1b2acd14611" />
+#### Cleanup page
+<img width="800" style="height:auto;" alt="image" src="https://github.com/user-attachments/assets/7bb610f6-cffd-40d9-8b52-070e4f3d8dba" />
 
 
-<img width="743" height="711" alt="schedule" src="https://github.com/user-attachments/assets/f9efe07b-5974-4485-bbd7-381e6bd071dd" />
+#### Settings page
+<img width="800" style="height:auto;" alt="image" src="https://github.com/user-attachments/assets/7bf4c0c1-50dd-4935-aba2-cbaa6fc78642" />
 
 
-<img width="728" height="1272" alt="home screen section" src="https://github.com/user-attachments/assets/8dc7b72b-4272-4527-b505-44fa155d4692" />
 
 
-<img width="737" height="799" alt="sync" src="https://github.com/user-attachments/assets/29103ea5-fce7-47be-9f75-99ee38b58975" />
+
+
+
+
+
+
 
 
 
