@@ -255,6 +255,10 @@ The plugin page has three tabs: **Tag and Collection**, **Home Screen**, and **S
 #### Create top-list page
 <img width="800" style="height:auto;" alt="image" src="https://github.com/user-attachments/assets/88576c4c-4ac7-4339-9a33-cd9e94342844" />
 
+#### Creation of top-list
+<img width="800" style="height:auto;" alt="image" src="https://github.com/user-attachments/assets/d9bfdc44-2e75-4c98-8f50-ae304ad1ae6b" />
+
+
 #### Home screen manager (copy settings)
 <img width="800" style="height:auto;" alt="588494512-b10a99c7-c518-413b-90e8-3add2bcdf6c5" src="https://github.com/user-attachments/assets/8628bada-c908-42e8-987f-cce2608c7031" />
 
