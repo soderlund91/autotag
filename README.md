@@ -238,7 +238,7 @@ The plugin page has three tabs: **Tag and Collection**, **Home Screen**, and **S
 
 ### Screenshots
 #### Main screen
-<img width="800" style="height:auto;" alt="image" src="https://github.com/user-attachments/assets/0121c3a8-e307-429b-8da2-55f2d48388dc" />
+<img width="800" style="height:auto;" alt="image" src="https://github.com/user-attachments/assets/b0d1e8a3-0091-4be1-aeac-88a09d4d497e" />
 
 #### New group
 <img width="800" style="height:auto;" alt="image" src="https://github.com/user-attachments/assets/79f5b64f-359a-4520-9e59-bc6cf69e26c3" />
